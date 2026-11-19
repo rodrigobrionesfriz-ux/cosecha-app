@@ -185,6 +185,13 @@ tfoot td { font-weight: 700; background: #f8faf8; }
 .resultado.ok { background: var(--verde-claro); color: var(--verde-osc); }
 .resultado.err { background: var(--cereza-claro); color: var(--cereza); }
 .resultado.av { background: var(--ambar-claro); color: var(--ambar); }
+.contador { display: flex; align-items: center; justify-content: space-between; gap: .8rem; margin: .8rem 0 1rem; }
+.contador button { width: 88px; height: 88px; border-radius: 50%; font-size: 2.6rem; font-weight: 700; line-height: 1; padding: 0; background: var(--blanco); border: 2px solid var(--verde); color: var(--verde); flex: 0 0 auto; }
+.contador button:active { background: var(--verde-claro); }
+.contador button:disabled { border-color: var(--borde); color: #b9c2bb; }
+.contador .valor { text-align: center; flex: 1; }
+.contador .n { font-size: 4rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.contador .u { color: var(--gris); font-size: .95rem; margin-top: .2rem; }
 .cantidades { display: grid; grid-template-columns: repeat(5, 1fr); gap: .4rem; margin: .6rem 0; }
 .cantidades button { padding: .9rem 0; font-size: 1.2rem; font-weight: 700; }
 .cantidades button.sel { background: var(--verde); color: #fff; border-color: var(--verde); }

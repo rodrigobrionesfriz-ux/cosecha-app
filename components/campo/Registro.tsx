@@ -18,6 +18,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
   const [hoyTrab, setHoyTrab] = useState<{ envases: number; entregas: number }>({ envases: 0, entregas: 0 });
   const [totalHoy, setTotalHoy] = useState({ envases: 0, trabajadores: 0 });
   const [manual, setManual] = useState('');
+  const [cant, setCant] = useState(1);
   const posRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const falta = faltantesDia(dia, cfg, m);
@@ -71,6 +72,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
     }
     beep(true); vibrar(60);
     setMsg({ t: 'ok', titulo: nombreTrabajador(t), detalle: `Lleva ${num(tot.envases)} ${envase?.nombre?.toLowerCase() ?? 'envases'} hoy` });
+    setCant(1);
     setPaso(cfg.modo_captura === 'credencial_caja' ? 'caja' : 'cantidad');
   }
 
@@ -212,12 +214,18 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
 
       {paso === 'cantidad' && actual && (
         <div>
-          <div className="cantidades">
-            {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
-              <button key={n} onClick={() => guardar(n)}>{n}</button>
-            ))}
+          <div className="contador">
+            <button type="button" aria-label="Disminuir" disabled={cant <= 1} onClick={() => { setCant(Math.max(1, cant - 1)); vibrar(20); }}>−</button>
+            <div className="valor">
+              <div className="n">{cant}</div>
+              <div className="u">{envase?.nombre?.toLowerCase() ?? 'envases'}</div>
+            </div>
+            <button type="button" aria-label="Aumentar" disabled={cant >= max} onClick={() => { setCant(Math.min(max, cant + 1)); vibrar(20); }}>+</button>
           </div>
-          <button className="grande" onClick={cancelar}>Cancelar</button>
+          <button className="primario grande" style={{ fontSize: '1.3rem', padding: '1.1rem' }} onClick={() => guardar(cant)}>
+            Aceptar {cant}
+          </button>
+          <button className="grande" style={{ marginTop: '.6rem' }} onClick={cancelar}>Cancelar</button>
         </div>
       )}
 
