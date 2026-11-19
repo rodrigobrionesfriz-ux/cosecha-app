@@ -2,11 +2,13 @@
 import { useEffect, useState } from 'react';
 import { db, EntregaLocal, vigente } from '@/lib/offline';
 import { Maestros } from '@/lib/campo';
+import Rendimiento from './Rendimiento';
 import { horaCorta, hoyISO, num } from '@/lib/util';
 
 export default function Resumen({ m, onCambio }: { m: Maestros; onCambio: () => void }) {
   const [lista, setLista] = useState<EntregaLocal[]>([]);
   const [ver, setVer] = useState<'trab' | 'ult'>('trab');
+  const [consultar, setConsultar] = useState(false);
 
   async function cargar() {
     const l = await db.entregas.where('fecha').equals(hoyISO()).toArray();
@@ -35,8 +37,11 @@ export default function Resumen({ m, onCambio }: { m: Maestros; onCambio: () => 
     cargar(); onCambio();
   }
 
+  if (consultar) return <Rendimiento m={m} onCerrar={() => setConsultar(false)} />;
+
   return (
     <div>
+      <button className="primario grande" style={{ marginBottom: '.8rem' }} onClick={() => setConsultar(true)}>🔍 Consultar rendimiento de un trabajador</button>
       <div className="kpis" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
         <div className="kpi"><div className="v">{num(total)}</div><div className="l">Envases</div></div>
         <div className="kpi"><div className="v">{num(kilos)}</div><div className="l">Kg est.</div></div>
