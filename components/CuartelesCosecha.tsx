@@ -12,7 +12,7 @@ export default function CuartelesCosecha({ onCambio }: { onCambio?: () => void }
   const cuarteles = useTabla<any>('cuarteles', 'id,nombre,huerto_id,variedad_id,en_cosecha,activo', 'nombre');
   const variedades = useTabla<any>('variedades', 'id,nombre', 'nombre');
   const [guardando, setGuardando] = useState<string | null>(null);
-  const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
+  const [cerrados, setCerrados] = useState<Set<string>>(new Set());
 
   async function cambiar(ids: string[], valor: boolean, clave: string) {
     if (!ids.length) return;
@@ -25,7 +25,7 @@ export default function CuartelesCosecha({ onCambio }: { onCambio?: () => void }
   }
 
   const variedad = (id: string) => variedades.filas.find((v) => v.id === id)?.nombre;
-  const toggleAbierto = (id: string) => { const s = new Set(abiertos); s.has(id) ? s.delete(id) : s.add(id); setAbiertos(s); };
+  const toggleAbierto = (id: string) => { const s = new Set(cerrados); s.has(id) ? s.delete(id) : s.add(id); setCerrados(s); };
   const totalHab = cuarteles.filas.filter((c) => c.en_cosecha && c.activo).length;
 
   if (huertos.cargando || cuarteles.cargando) return <p className="muted">Cargando…</p>;
@@ -45,7 +45,7 @@ export default function CuartelesCosecha({ onCambio }: { onCambio?: () => void }
       {huertos.filas.map((h) => {
         const lista = cuarteles.filas.filter((c) => c.huerto_id === h.id && c.activo);
         const hab = lista.filter((c) => c.en_cosecha).length;
-        const abierto = abiertos.has(h.id) || lista.length <= 6;
+        const abierto = !cerrados.has(h.id);
         const estado = !lista.length ? '' : hab === lista.length ? 'ok' : hab === 0 ? '' : 'av';
         return (
           <div key={h.id} className="grupo-huerto">

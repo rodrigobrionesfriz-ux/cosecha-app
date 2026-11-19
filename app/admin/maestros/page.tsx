@@ -36,14 +36,14 @@ export default function Maestros() {
       )}
       {tab === 'Cuarteles' && <CuartelesCosecha key={`cc-${ver}`} onCambio={() => setVerCrud((v) => v + 1)} />}
       {tab === 'Cuarteles' && (
-        <Crud key={`c-${verCrud}`} tabla="cuarteles" titulo="Todos los cuarteles" onGuardado={() => setVer(ver + 1)}
+        <Crud key={`c-${verCrud}`} tabla="cuarteles" titulo="Todos los cuarteles" onGuardado={() => setVer((v) => v + 1)}
           ayuda="Cada cuartel pertenece a un huerto y tiene una variedad. En terreno el jefe elige el cuartel donde está cosechando."
           campos={[
             { k: 'huerto_id', t: 'Huerto', tipo: 'select', opciones: op(huertos.filas), req: true },
             { k: 'nombre', t: 'Cuartel', req: true },
             { k: 'variedad_id', t: 'Variedad', tipo: 'select', opciones: opVariedades },
             { k: 'superficie_ha', t: 'Superficie (ha)', tipo: 'number', ancho: 130 },
-            { k: 'en_cosecha', t: 'Habilitado para cosecha', tipo: 'bool', def: false },
+            { k: 'en_cosecha', t: 'En cosecha', tipo: 'bool', def: false, inline: true },
           ]} />
       )}
       {tab === 'Especies' && (

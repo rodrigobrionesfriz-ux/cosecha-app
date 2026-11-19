@@ -12,6 +12,7 @@ export type Campo = {
   req?: boolean;
   ancho?: number;
   def?: any;
+  inline?: boolean; // bool editable directo en la tabla con interruptor
 };
 
 type Props = {
@@ -26,7 +27,7 @@ type Props = {
 /** Mantenedor genérico: lista + formulario de alta/edición */
 export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda, onGuardado }: Props) {
   const { perfil } = useAuth();
-  const { filas, cargando, error, recargar } = useTabla<any>(tabla, '*', orden);
+  const { filas, cargando, error, recargar, setFilas } = useTabla<any>(tabla, '*', orden);
   const [edit, setEdit] = useState<any | null>(null);
   const [msg, setMsg] = useState('');
   const [filtro, setFiltro] = useState('');
@@ -56,6 +57,13 @@ export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda, o
     if (error) { setMsg(errorAmigable(error.message)); return; }
     setEdit(null);
     recargar();
+    onGuardado?.();
+  }
+
+  async function alternar(f: any, c: Campo, valor: boolean) {
+    setFilas(filas.map((x) => (x.id === f.id ? { ...x, [c.k]: valor } : x)));
+    const { error } = await supabase.from(tabla).update({ [c.k]: valor }).eq('id', f.id);
+    if (error) { alert(errorAmigable(error.message)); recargar(); return; }
     onGuardado?.();
   }
 
@@ -146,7 +154,17 @@ export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda, o
             {!cargando && !visibles.length && <tr><td colSpan={99} className="muted">Sin registros todavía.</td></tr>}
             {visibles.map((f) => (
               <tr key={f.id ?? f.huerto_id}>
-                {campos.map((c) => <td key={c.k} className={c.tipo === 'number' ? 'n' : ''}>{mostrar(c, f[c.k])}</td>)}
+                {campos.map((c) => (
+                  <td key={c.k} className={c.tipo === 'number' ? 'n' : ''}>
+                    {c.tipo === 'bool' && c.inline && esAdmin ? (
+                      <label className={`interruptor ${f[c.k] ? 'on' : ''}`} style={{ padding: 0 }}>
+                        <input type="checkbox" checked={!!f[c.k]} onChange={(e) => alternar(f, c, e.target.checked)} />
+                        <span className="pista" aria-hidden />
+                        <span className="txt muted" style={{ fontSize: '.82rem' }}>{f[c.k] ? 'Sí' : 'No'}</span>
+                      </label>
+                    ) : mostrar(c, f[c.k])}
+                  </td>
+                ))}
                 {'activo' in f && !campos.some((c) => c.k === 'activo') && (
                   <td>{f.activo ? <span className="badge ok">Activo</span> : <span className="badge">Inactivo</span>}</td>
                 )}
