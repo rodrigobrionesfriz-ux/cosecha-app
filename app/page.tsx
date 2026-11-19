@@ -26,8 +26,13 @@ export default function Inicio() {
       const { error } = await supabase.auth.signInWithPassword({ email, password: clave });
       if (error) setMsg({ t: 'error', m: error.message === 'Invalid login credentials' ? 'Correo o clave incorrectos' : error.message });
     } else {
+      if (clave.length < 8 || !/[a-zA-Z]/.test(clave) || !/\d/.test(clave)) {
+        setMsg({ t: 'error', m: 'La clave debe tener al menos 8 caracteres e incluir letras y números.' });
+        setEnviando(false);
+        return;
+      }
       const { data, error } = await supabase.auth.signUp({ email, password: clave, options: { emailRedirectTo: location.origin } });
-      if (error) setMsg({ t: 'error', m: error.message });
+      if (error) setMsg({ t: 'error', m: /weak|password/i.test(error.message) ? 'La clave es muy débil: usa al menos 8 caracteres con letras y números.' : /registered|exists/i.test(error.message) ? 'Ese correo ya tiene cuenta. Usa "Entrar".' : error.message });
       else if (!data.session) setMsg({ t: 'info', m: 'Revisa tu correo para confirmar la cuenta y luego entra.' });
     }
     setEnviando(false);
@@ -59,8 +64,8 @@ export default function Inicio() {
           <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
         </div>
         <div className="campo">
-          <label>Clave</label>
-          <input type="password" required minLength={6} value={clave} onChange={(e) => setClave(e.target.value)} autoComplete={modo === 'entrar' ? 'current-password' : 'new-password'} />
+          <label>Clave{modo === 'registro' && ' (mínimo 8 caracteres, con letras y números)'}</label>
+          <input type="password" required minLength={modo === 'registro' ? 8 : 6} value={clave} onChange={(e) => setClave(e.target.value)} autoComplete={modo === 'entrar' ? 'current-password' : 'new-password'} />
         </div>
         {msg && <div className={`alerta ${msg.t}`}>{msg.m}</div>}
         <button className="primario grande" disabled={enviando}>{modo === 'entrar' ? 'Entrar' : 'Crear cuenta'}</button>
