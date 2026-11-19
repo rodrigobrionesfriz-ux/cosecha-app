@@ -9,6 +9,9 @@ export default function Resumen({ m, onCambio }: { m: Maestros; onCambio: () => 
   const [lista, setLista] = useState<EntregaLocal[]>([]);
   const [ver, setVer] = useState<'trab' | 'ult'>('trab');
   const [consultar, setConsultar] = useState(false);
+  const [buscar, setBuscar] = useState('');
+  const [ahora, setAhora] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setAhora(Date.now()), 60000); return () => clearInterval(t); }, []);
 
   async function cargar() {
     const l = await db.entregas.where('fecha').equals(hoyISO()).toArray();
@@ -17,17 +20,27 @@ export default function Resumen({ m, onCambio }: { m: Maestros; onCambio: () => 
   }
   useEffect(() => { cargar(); }, [m]); // se recarga tras cada sincronización
 
-  const porTrab = new Map<string, { nombre: string; envases: number; entregas: number; ultima: string }>();
+  const porTrab = new Map<string, { id: string; nombre: string; envases: number; kilos: number; entregas: number; ultima: string }>();
   const validas = lista.filter(vigente);
   for (const e of validas) {
-    const a = porTrab.get(e.trabajador_id) || { nombre: e.trabajador_nombre || '', envases: 0, entregas: 0, ultima: e.leido_en };
-    a.envases += Number(e.cantidad); a.entregas++;
+    const a = porTrab.get(e.trabajador_id) || { id: e.trabajador_id, nombre: e.trabajador_nombre || '', envases: 0, kilos: 0, entregas: 0, ultima: e.leido_en };
+    a.envases += Number(e.cantidad); a.kilos += Number(e.kilos_estimados); a.entregas++;
     if (e.leido_en > a.ultima) a.ultima = e.leido_en;
     porTrab.set(e.trabajador_id, a);
   }
   const ranking = [...porTrab.values()].sort((a, b) => b.envases - a.envases);
   const total = validas.reduce((s, e) => s + Number(e.cantidad), 0);
   const kilos = validas.reduce((s, e) => s + Number(e.kilos_estimados), 0);
+  const maxEnv = ranking[0]?.envases || 1;
+  const envaseNombre = m.envases.find((x) => x.id === validas[0]?.envase_id)?.nombre?.toLowerCase() ?? 'envases';
+  const visibles = buscar ? ranking.filter((r) => r.nombre.toLowerCase().includes(buscar.toLowerCase())) : ranking;
+  const hace = (iso: string) => {
+    const min = Math.max(0, Math.round((ahora - new Date(iso).getTime()) / 60000));
+    if (min < 1) return 'recién';
+    if (min < 60) return `hace ${min} min`;
+    const h = Math.floor(min / 60), r = min % 60;
+    return `hace ${h} h${r ? ` ${r} min` : ''}`;
+  };
   const cuartel = (id: string) => m.cuarteles.find((c) => c.id === id)?.nombre ?? '';
 
   async function borrar(e: EntregaLocal) {
@@ -41,26 +54,50 @@ export default function Resumen({ m, onCambio }: { m: Maestros; onCambio: () => 
 
   return (
     <div>
-      <button className="primario grande" style={{ marginBottom: '.8rem' }} onClick={() => setConsultar(true)}>🔍 Consultar rendimiento de un trabajador</button>
-      <div className="kpis" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
-        <div className="kpi"><div className="v">{num(total)}</div><div className="l">Envases</div></div>
-        <div className="kpi"><div className="v">{num(kilos)}</div><div className="l">Kg est.</div></div>
-        <div className="kpi"><div className="v">{porTrab.size}</div><div className="l">Trabajadores</div></div>
+      <button className="btn-consultar" onClick={() => setConsultar(true)}>
+        <span className="ico">🔍</span>
+        <span><b>Consultar trabajador</b><br /><small>Ver su rendimiento de hoy y la semana</small></span>
+        <span className="flecha">›</span>
+      </button>
+
+      <div className="resumen-dia">
+        <div><b>{num(total, total % 1 ? 1 : 0)}</b><span>{envaseNombre}</span></div>
+        <div><b>{num(kilos)}</b><span>kg est.</span></div>
+        <div><b>{porTrab.size}</b><span>trabajadores</span></div>
       </div>
+
       <div className="tabs">
-        <button className={ver === 'trab' ? 'activo' : ''} onClick={() => setVer('trab')}>Por trabajador</button>
+        <button className={ver === 'trab' ? 'activo' : ''} onClick={() => setVer('trab')}>Ranking</button>
         <button className={ver === 'ult' ? 'activo' : ''} onClick={() => setVer('ult')}>Últimas lecturas</button>
       </div>
-      {!lista.length && <p className="muted">Sin entregas hoy en este teléfono.</p>}
+      {!lista.length && <p className="muted" style={{ textAlign: 'center', marginTop: '2rem' }}>Sin entregas hoy en este teléfono.</p>}
       {ver === 'trab' ? (
-        <ul className="lista-entregas">
-          {ranking.map((r, i) => (
-            <li key={i}>
-              <span><span className="muted">{i + 1}.</span> {r.nombre}<br /><span className="muted">{r.entregas} entregas · última {horaCorta(r.ultima)}</span></span>
-              <b style={{ fontSize: '1.2rem' }}>{num(r.envases)}</b>
-            </li>
-          ))}
-        </ul>
+        <>
+          {ranking.length > 8 && (
+            <input placeholder="Buscar trabajador…" value={buscar} onChange={(e) => setBuscar(e.target.value)} style={{ marginBottom: '.6rem' }} />
+          )}
+          <div className="ranking">
+            {visibles.map((r) => {
+              const pos = ranking.indexOf(r) + 1;
+              return (
+                <div key={r.id} className="rank-item">
+                  <div className={`pos p${Math.min(pos, 4)}`}>{pos}</div>
+                  <div className="info">
+                    <div className="fila-sup">
+                      <span className="nom">{r.nombre}</span>
+                      <span className="cant">{num(r.envases, r.envases % 1 ? 1 : 0)}</span>
+                    </div>
+                    <div className="barra"><span style={{ width: `${Math.max(4, (r.envases / maxEnv) * 100)}%` }} /></div>
+                    <div className="det">
+                      <span>{r.entregas} entrega{r.entregas === 1 ? '' : 's'} · {num(r.kilos)} kg</span>
+                      <span>última {horaCorta(r.ultima)} · {hace(r.ultima)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       ) : (
         <ul className="lista-entregas">
           {lista.slice(0, 100).map((e) => (

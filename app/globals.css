@@ -217,6 +217,31 @@ tfoot td { font-weight: 700; background: #f8faf8; }
 .fijo:last-child { border-bottom: none; }
 .fijo span:first-child { color: var(--gris); }
 
+.grande { white-space: normal; }
+.btn-consultar { width: 100%; display: flex; align-items: center; gap: .8rem; text-align: left; justify-content: flex-start;
+  background: var(--verde); color: #fff; border: none; border-radius: 12px; padding: .8rem 1rem; margin-bottom: .8rem; white-space: normal; }
+.btn-consultar .ico { font-size: 1.5rem; }
+.btn-consultar small { opacity: .85; font-size: .8rem; }
+.btn-consultar .flecha { margin-left: auto; font-size: 1.8rem; opacity: .8; }
+.resumen-dia { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--blanco); border: 1px solid var(--borde); border-radius: 12px; margin-bottom: .6rem; }
+.resumen-dia > div { padding: .6rem .4rem; text-align: center; border-right: 1px solid var(--borde); }
+.resumen-dia > div:last-child { border-right: none; }
+.resumen-dia b { display: block; font-size: 1.5rem; line-height: 1.1; }
+.resumen-dia span { color: var(--gris); font-size: .78rem; }
+.ranking { display: flex; flex-direction: column; gap: .5rem; }
+.rank-item { display: flex; gap: .7rem; align-items: center; background: var(--blanco); border: 1px solid var(--borde); border-radius: 12px; padding: .6rem .75rem; }
+.rank-item .pos { flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .9rem; background: #eef1ee; color: var(--gris); }
+.rank-item .pos.p1 { background: #f6d77a; color: #6b4e00; }
+.rank-item .pos.p2 { background: #dde3e8; color: #46525c; }
+.rank-item .pos.p3 { background: #ecc6a6; color: #6d3f17; }
+.rank-item .info { flex: 1; min-width: 0; }
+.rank-item .fila-sup { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
+.rank-item .nom { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rank-item .cant { font-size: 1.45rem; font-weight: 800; color: var(--verde-osc); font-variant-numeric: tabular-nums; }
+.rank-item .barra { height: 6px; background: #edf1ed; border-radius: 3px; margin: .3rem 0; overflow: hidden; }
+.rank-item .barra span { display: block; height: 100%; background: var(--verde); border-radius: 3px; }
+.rank-item .det { display: flex; justify-content: space-between; gap: .5rem; flex-wrap: wrap; font-size: .78rem; color: var(--gris); }
+
 /* ---------- Impresión de tarjetas ---------- */
 .no-print { }
 @media print {
