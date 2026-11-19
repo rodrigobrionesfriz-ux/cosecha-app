@@ -94,7 +94,12 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
       {paso === 'rut' && (
         <>
           <p className="muted" style={{ marginTop: 0 }}>1. Lee el QR del carnet del trabajador o escribe su RUT.</p>
-          {escanearRut && !extranjero && <Scanner onScan={onScanRut} alto={220} />}
+          {escanearRut && !extranjero && (
+            <>
+              <Scanner onScan={onScanRut} alto={220} />
+              <p className="muted scanner-ayuda">Pon el carnet a unos 15 a 20 cm, con buena luz y sin reflejo. Toca la imagen para enfocar; si queda chico, usa 2×.</p>
+            </>
+          )}
           <div className="fila" style={{ marginTop: '.6rem' }}>
             <input placeholder={extranjero ? 'N° de documento' : 'RUT 12.345.678-9'} value={rut} onChange={(e) => setRut(e.target.value)} inputMode={extranjero ? 'text' : 'text'} />
             <button className="primario" style={{ flex: '0 0 auto' }} onClick={() => usarRut(rut)}>Siguiente</button>

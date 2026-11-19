@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Scanner from '@/components/Scanner';
 import { db, EntregaLocal, idDispositivo } from '@/lib/offline';
 import { Config, Dia, Maestros, faltantesAdmin, faltantesDia, jornadaActual, nombreTrabajador } from '@/lib/campo';
-import { beep, hablar, hoyISO, normalizarCodigo, num, tipoCodigo, uuid, vibrar } from '@/lib/util';
+import { beep, hablar, hoyISO, normalizarCodigo, num, rutDesdeQR, tipoCodigo, uuid, vibrar } from '@/lib/util';
 import type { Perfil } from '@/lib/auth';
 
 type Paso = 'credencial' | 'cantidad' | 'caja' | 'confirmar';
@@ -78,6 +78,16 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
     if (falta.length || faltaAdmin.length) return;
     const codigo = normalizarCodigo(texto);
     const tipo = tipoCodigo(codigo);
+    // Respaldo: carnet del trabajador en vez de la credencial
+    if (!tipo && (paso === 'credencial' || paso === 'confirmar' || paso === 'caja')) {
+      const rut = rutDesdeQR(texto);
+      if (rut) {
+        const t = m.trabajadores.find((x) => x.rut === rut);
+        const cred = t && m.credenciales.find((c) => c.trabajador_id === t.id);
+        if (cred) return leerCredencial(cred.codigo);
+        return error(t ? 'Trabajador sin credencial' : 'Trabajador no registrado', 'Asígnale una credencial en la pestaña Credencial.');
+      }
+    }
     if (paso === 'credencial' || paso === 'confirmar') {
       if (tipo === 'W') return leerCredencial(codigo);
       if (tipo === 'B') return error('Primero la credencial', 'Lee la credencial del trabajador antes de la caja.');
@@ -181,7 +191,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
       {escaneando && <Scanner onScan={onScan} pausado={paso === 'confirmar'} />}
 
       <p className="muted" style={{ textAlign: 'center', margin: '.5rem 0' }}>
-        {paso === 'credencial' && 'Apunta a la credencial del trabajador'}
+        {paso === 'credencial' && 'Apunta a la credencial (o al carnet) del trabajador · toca la imagen para enfocar'}
         {paso === 'caja' && actual && `Lee las cajas de ${nombreTrabajador(actual.trabajador)} · otra credencial cambia de trabajador`}
       </p>
 

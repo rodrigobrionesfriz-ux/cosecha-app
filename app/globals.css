@@ -174,7 +174,11 @@ tfoot td { font-weight: 700; background: #f8faf8; }
 .scanner { position: relative; background: #000; border-radius: 12px; overflow: hidden; }
 .scanner video { width: 100% !important; display: block; }
 .scanner-pausa { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); color: #fff; font-weight: 700; }
-.btn-linterna { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,.85); padding: .3rem .6rem; }
+.scanner-botones { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; z-index: 3; }
+.scanner-botones button { background: rgba(255,255,255,.88); padding: .35rem .65rem; min-width: 42px; font-weight: 600; }
+.scanner-botones button.sel { background: var(--verde); color: #fff; border-color: var(--verde); }
+.scanner-foco { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); background: rgba(0,0,0,.6); color: #fff; padding: .25rem .7rem; border-radius: 99px; font-size: .85rem; z-index: 3; }
+.scanner-ayuda { text-align: center; font-size: .82rem; margin: .35rem 0 0; }
 
 .resultado { border-radius: 12px; padding: 1rem; margin: .8rem 0; text-align: center; }
 .resultado .nombre { font-size: 1.35rem; font-weight: 700; }
