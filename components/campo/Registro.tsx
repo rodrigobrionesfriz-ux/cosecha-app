@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import Scanner from '@/components/Scanner';
+import CapturaQR from '@/components/CapturaQR';
 import { db, EntregaLocal, idDispositivo, vigente } from '@/lib/offline';
 import { Config, Dia, Maestros, faltantesAdmin, faltantesDia, jornadaActual, nombreTrabajador } from '@/lib/campo';
 import { beep, hablar, hoyISO, normalizarCodigo, num, rutDesdeQR, tipoCodigo, uuid, vibrar } from '@/lib/util';
@@ -76,7 +76,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
     setPaso(cfg.modo_captura === 'credencial_caja' ? 'caja' : 'cantidad');
   }
 
-  async function onScan(texto: string) {
+  async function onScan(texto: string): Promise<boolean | void> {
     if (falta.length || faltaAdmin.length) return;
     const codigo = normalizarCodigo(texto);
     const tipo = tipoCodigo(codigo);
@@ -93,11 +93,12 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
     if (paso === 'credencial' || paso === 'confirmar') {
       if (tipo === 'W') return leerCredencial(codigo);
       if (tipo === 'B') return error('Primero la credencial', 'Lee la credencial del trabajador antes de la caja.');
-      return error('Código no reconocido', codigo.slice(0, 40));
+      error('Código no reconocido', codigo.slice(0, 40));
+      return false; // seguir con la cámara encendida
     }
     if (paso === 'caja') {
       if (tipo === 'W') return leerCredencial(codigo); // cambio de trabajador
-      if (tipo !== 'B') return error('No es una etiqueta de caja', codigo.slice(0, 40));
+      if (tipo !== 'B') { error('No es una etiqueta de caja', codigo.slice(0, 40)); return false; }
       // caja ya leída (en este teléfono o en el servidor) dentro de la ventana de bloqueo
       const limite = Date.now() - cfg.horas_bloqueo_caja * 3600 * 1000;
       const local = (await db.entregas.where('codigo_caja').equals(codigo).toArray()).filter(vigente);
@@ -180,7 +181,6 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
   }
 
   const max = Math.max(1, Math.min(cfg.max_cajas_por_lectura || 10, 50));
-  const escaneando = paso === 'credencial' || paso === 'caja' || paso === 'confirmar';
 
   return (
     <div>
@@ -190,12 +190,16 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
       </div>
 
 
-      {/* La cámara queda abierta siempre; en 'cantidad' se oculta y se pausa */}
-      <Scanner onScan={onScan} pausado={!escaneando || paso === 'confirmar'} oculto={paso === 'cantidad'} />
+      {/* La cámara se enciende solo al tocar Capturar y se apaga al leer */}
+      {(paso === 'credencial' || paso === 'caja') && (
+        <CapturaQR key={paso + (actual?.codigo ?? '')}
+          etiqueta={paso === 'caja' ? 'Capturar caja' : 'Capturar credencial'}
+          onScan={onScan} />
+      )}
 
       <p className="muted" style={{ textAlign: 'center', margin: '.5rem 0' }}>
-        {paso === 'credencial' && 'Apunta a la credencial (o al carnet) del trabajador · toca la imagen para enfocar'}
-        {paso === 'caja' && actual && `Lee las cajas de ${nombreTrabajador(actual.trabajador)} · otra credencial cambia de trabajador`}
+        {paso === 'credencial' && !msg && 'Toca Capturar y apunta a la credencial (o al carnet) del trabajador'}
+        {paso === 'caja' && actual && `Cajas de ${nombreTrabajador(actual.trabajador)} · una credencial distinta cambia de trabajador`}
       </p>
 
       {msg && (

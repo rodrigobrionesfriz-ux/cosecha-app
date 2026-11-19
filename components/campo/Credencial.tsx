@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import Scanner from '@/components/Scanner';
+import CapturaQR from '@/components/CapturaQR';
 import { db } from '@/lib/offline';
 import { Config, Maestros, nombreTrabajador, registrarAsignacionLocal } from '@/lib/campo';
 import { beep, formatearRut, normalizarCodigo, normalizarRut, rutDesdeQR, rutValido, tipoCodigo, uuid, vibrar } from '@/lib/util';
@@ -17,7 +17,6 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
   const [datos, setDatos] = useState({ nombres: '', apellido_paterno: '', apellido_materno: '', contratista_id: '' });
   const [codigo, setCodigo] = useState('');
   const [aviso, setAviso] = useState<{ t: string; m: string; forzable?: boolean } | null>(null);
-  const [escanearRut, setEscanearRut] = useState(true);
 
   useEffect(() => { if (prefill) setCodigo(prefill); }, [prefill]);
 
@@ -43,9 +42,9 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
     }
   }
 
-  function onScanRut(texto: string) {
+  function onScanRut(texto: string): boolean | void {
     const r = rutDesdeQR(texto);
-    if (!r) { setAviso({ t: 'error', m: 'No es el QR de un carnet. Escribe el RUT.' }); beep(false); return; }
+    if (!r) { setAviso({ t: 'error', m: 'No es el QR de un carnet. Intenta de nuevo o escribe el RUT.' }); beep(false); return false; }
     usarRut(r);
   }
 
@@ -94,10 +93,9 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
       {paso === 'rut' && (
         <>
           <p className="muted" style={{ marginTop: 0 }}>1. Lee el QR del carnet del trabajador o escribe su RUT.</p>
-          {escanearRut && !extranjero && (
+          {!extranjero && (
             <>
-              <Scanner onScan={onScanRut} alto={210} />
-              <p className="muted scanner-ayuda">Pon el carnet a unos 15 a 20 cm, con buena luz y sin reflejo. Toca la imagen para enfocar; si queda chico, usa 2×.</p>
+              <CapturaQR etiqueta="Capturar carnet" onScan={(t) => onScanRut(t)} ayuda="Carnet a 15 a 20 cm, sin reflejo" />
             </>
           )}
           <div className="fila" style={{ marginTop: '.6rem' }}>
@@ -105,7 +103,6 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
             <button className="primario" style={{ flex: '0 0 auto' }} onClick={() => usarRut(rut)}>Siguiente</button>
           </div>
           <div className="acciones" style={{ marginTop: '.6rem' }}>
-            <button className="chico" onClick={() => setEscanearRut(!escanearRut)}>{escanearRut ? 'Ocultar cámara' : 'Usar cámara'}</button>
             {cfg.permite_rut_extranjero && (
               <label className="check"><input type="checkbox" checked={extranjero} onChange={(e) => setExtranjero(e.target.checked)} /> Extranjero sin RUT</label>
             )}
@@ -140,7 +137,7 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
             <div>{extranjero ? rut : formatearRut(rut)}</div>
           </div>
           <p className="muted">2. Lee la credencial QR que le vas a entregar.</p>
-          {!aviso?.forzable && <Scanner onScan={(t) => asignar(t)} alto={210} />}
+          {!aviso?.forzable && <CapturaQR etiqueta="Capturar credencial" onScan={(t) => asignar(t)} />}
           {!aviso?.forzable && (
             <div className="fila" style={{ marginTop: '.6rem' }}>
               <input placeholder="o escribe el código" value={codigo} onChange={(e) => setCodigo(e.target.value)} className="mono" />

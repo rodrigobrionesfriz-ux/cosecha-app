@@ -218,6 +218,12 @@ tfoot td { font-weight: 700; background: #f8faf8; }
 .fijo span:first-child { color: var(--gris); }
 
 .grande { white-space: normal; }
+.btn-capturar { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem;
+  padding: 1.6rem 1rem; border-radius: 14px; border: 2px dashed var(--verde); background: var(--verde-claro); color: var(--verde-osc);
+  font-size: 1.2rem; font-weight: 700; }
+.btn-capturar .ico { font-size: 2.4rem; line-height: 1; }
+.btn-capturar:active { background: #d6e8d8; }
+.captura-pie { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-top: .4rem; font-size: .8rem; }
 .btn-consultar { width: 100%; display: flex; align-items: center; gap: .8rem; text-align: left; justify-content: flex-start;
   background: var(--verde); color: #fff; border: none; border-radius: 12px; padding: .8rem 1rem; margin-bottom: .8rem; white-space: normal; }
 .btn-consultar .ico { font-size: 1.5rem; }

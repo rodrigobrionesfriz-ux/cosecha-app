@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import Scanner from '@/components/Scanner';
+import CapturaQR from '@/components/CapturaQR';
 import { supabase } from '@/lib/supabase';
 import { db, vigente } from '@/lib/offline';
 import { Maestros, nombreTrabajador } from '@/lib/campo';
@@ -26,10 +26,10 @@ export default function Rendimiento({ m, onCerrar }: { m: Maestros; onCerrar: ()
     return rut ? m.trabajadores.find((t) => t.rut === rut) : null;
   }
 
-  async function consultar(texto: string) {
-    if (cargando) return;
+  async function consultar(texto: string): Promise<boolean | void> {
+    if (cargando) return false;
     const t = trabajadorDesde(texto);
-    if (!t) { setError('No encontré un trabajador con esa credencial o carnet.'); beep(false); vibrar([200, 100, 200]); return; }
+    if (!t) { setError('No encontré un trabajador con esa credencial o carnet.'); beep(false); vibrar([200, 100, 200]); return false; }
     if (String(t.id).startsWith('local:')) { setError('Trabajador recién registrado en este teléfono: sincroniza primero.'); return; }
     beep(true); vibrar(60);
     setError(''); setCargando(true);
@@ -80,8 +80,7 @@ export default function Rendimiento({ m, onCerrar }: { m: Maestros; onCerrar: ()
 
       {!res && (
         <>
-          <Scanner onScan={consultar} pausado={cargando} />
-          <p className="muted scanner-ayuda">Lee la credencial o el carnet del trabajador.</p>
+          <CapturaQR etiqueta="Capturar credencial o carnet" onScan={consultar} />
           <div className="fila" style={{ marginTop: '.4rem' }}>
             <input className="mono" placeholder="o escribe el código de credencial" value={manual} onChange={(e) => setManual(e.target.value)} />
             <button style={{ flex: '0 0 auto' }} onClick={() => consultar(manual)}>Consultar</button>
