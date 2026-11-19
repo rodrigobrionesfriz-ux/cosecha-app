@@ -139,6 +139,21 @@ tfoot td { font-weight: 700; background: #f8faf8; }
   .encabezado .acciones > input { flex: 1; }
 }
 
+/* ---------- Habilitación de cuarteles ---------- */
+.grupo-huerto { border: 1px solid var(--borde); border-radius: 8px; margin-top: .6rem; overflow: hidden; }
+.grupo-cab { display: flex; justify-content: space-between; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .45rem .6rem; background: #f4f7f4; }
+.grupo-titulo { border: none; background: none; padding: .2rem 0; gap: .5rem; font-size: 1rem; }
+.grupo-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .2rem .8rem; padding: .5rem .7rem .7rem; }
+.interruptor { display: flex; align-items: center; gap: .6rem; padding: .45rem .2rem; cursor: pointer; color: var(--tinta); font-size: .95rem; margin: 0; }
+.interruptor input { position: absolute; opacity: 0; width: 0; height: 0; }
+.interruptor .pista { flex: 0 0 auto; width: 42px; height: 24px; border-radius: 12px; background: #cfd6d0; position: relative; transition: background .15s; }
+.interruptor .pista::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: left .15s; }
+.interruptor.on .pista { background: var(--verde); }
+.interruptor.on .pista::after { left: 21px; }
+.interruptor input:focus-visible + .pista { outline: 2px solid var(--verde); outline-offset: 2px; }
+.interruptor input:disabled + .pista { opacity: .5; }
+@media (max-width: 800px) { .grupo-lista { grid-template-columns: 1fr; } .grupo-cab .acciones { width: 100%; } .grupo-cab .acciones button { flex: 1; } }
+
 /* ---------- Login ---------- */
 .login { max-width: 380px; margin: 8vh auto; padding: 1rem; }
 .login .logo { font-size: 2.4rem; text-align: center; }

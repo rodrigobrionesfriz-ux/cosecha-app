@@ -120,7 +120,7 @@ export default function Campo() {
 
       <div className="campo-body">
         {!m.huertos.length && m.ultima_descarga && (
-          <div className="alerta aviso">No hay huertos configurados. El administrador debe crearlos en el panel.</div>
+          <div className="alerta aviso">No hay cuarteles habilitados para cosecha. El administrador debe habilitarlos en el panel (Huertos y maestros → Cuarteles) y luego toca Sincronizar.</div>
         )}
         {!m.ultima_descarga && (
           <div className="alerta aviso">Este teléfono aún no descarga los datos. Conéctate a internet y toca <b>Sincronizar</b>.</div>

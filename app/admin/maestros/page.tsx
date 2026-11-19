@@ -1,12 +1,15 @@
 'use client';
 import { useState } from 'react';
 import Crud from '@/components/Crud';
+import CuartelesCosecha from '@/components/CuartelesCosecha';
 import { useTabla } from '@/lib/datos';
 
 const TABS = ['Huertos', 'Cuarteles', 'Especies', 'Variedades', 'Envases', 'Calidades', 'Turnos', 'Contratistas', 'Cuadrillas'] as const;
 
 export default function Maestros() {
   const [tab, setTab] = useState<(typeof TABS)[number]>('Huertos');
+  const [ver, setVer] = useState(0);
+  const [verCrud, setVerCrud] = useState(0);
   const huertos = useTabla<any>('huertos', 'id,nombre', 'nombre');
   const especies = useTabla<any>('especies', 'id,nombre', 'nombre');
   const variedades = useTabla<any>('variedades', 'id,nombre,especie_id', 'nombre');
@@ -31,14 +34,16 @@ export default function Maestros() {
         <Crud key="h" tabla="huertos" titulo="Huertos" orden="orden"
           campos={[{ k: 'nombre', t: 'Nombre', req: true }, { k: 'orden', t: 'Orden', tipo: 'number', ancho: 100, def: 0 }]} />
       )}
+      {tab === 'Cuarteles' && <CuartelesCosecha key={`cc-${ver}`} onCambio={() => setVerCrud((v) => v + 1)} />}
       {tab === 'Cuarteles' && (
-        <Crud key="c" tabla="cuarteles" titulo="Cuarteles"
+        <Crud key={`c-${verCrud}`} tabla="cuarteles" titulo="Todos los cuarteles" onGuardado={() => setVer(ver + 1)}
           ayuda="Cada cuartel pertenece a un huerto y tiene una variedad. En terreno el jefe elige el cuartel donde está cosechando."
           campos={[
             { k: 'huerto_id', t: 'Huerto', tipo: 'select', opciones: op(huertos.filas), req: true },
             { k: 'nombre', t: 'Cuartel', req: true },
             { k: 'variedad_id', t: 'Variedad', tipo: 'select', opciones: opVariedades },
             { k: 'superficie_ha', t: 'Superficie (ha)', tipo: 'number', ancho: 130 },
+            { k: 'en_cosecha', t: 'Habilitado para cosecha', tipo: 'bool', def: false },
           ]} />
       )}
       {tab === 'Especies' && (

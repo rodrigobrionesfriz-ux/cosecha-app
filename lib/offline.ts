@@ -87,6 +87,7 @@ export async function descargarMaestros(): Promise<void> {
   for (const t of MAESTROS) {
     let q = supabase.from(t).select('*');
     if (t !== 'config_huerto') q = q.eq('activo', true);
+    if (t === 'cuarteles') q = q.eq('en_cosecha', true);
     const { data, error } = await q;
     if (error) throw new Error(`${t}: ${error.message}`);
     await setCache(t, data || []);

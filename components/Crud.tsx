@@ -20,10 +20,11 @@ type Props = {
   campos: Campo[];
   orden?: string;
   ayuda?: string;
+  onGuardado?: () => void;
 };
 
 /** Mantenedor genérico: lista + formulario de alta/edición */
-export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda }: Props) {
+export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda, onGuardado }: Props) {
   const { perfil } = useAuth();
   const { filas, cargando, error, recargar } = useTabla<any>(tabla, '*', orden);
   const [edit, setEdit] = useState<any | null>(null);
@@ -55,6 +56,7 @@ export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda }:
     if (error) { setMsg(errorAmigable(error.message)); return; }
     setEdit(null);
     recargar();
+    onGuardado?.();
   }
 
   async function borrar(f: any) {
