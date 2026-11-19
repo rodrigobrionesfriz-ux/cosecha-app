@@ -96,7 +96,7 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
           <p className="muted" style={{ marginTop: 0 }}>1. Lee el QR del carnet del trabajador o escribe su RUT.</p>
           {escanearRut && !extranjero && (
             <>
-              <Scanner onScan={onScanRut} alto={220} />
+              <Scanner onScan={onScanRut} alto={210} />
               <p className="muted scanner-ayuda">Pon el carnet a unos 15 a 20 cm, con buena luz y sin reflejo. Toca la imagen para enfocar; si queda chico, usa 2×.</p>
             </>
           )}
@@ -140,7 +140,7 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
             <div>{extranjero ? rut : formatearRut(rut)}</div>
           </div>
           <p className="muted">2. Lee la credencial QR que le vas a entregar.</p>
-          {!aviso?.forzable && <Scanner onScan={(t) => asignar(t)} alto={220} />}
+          {!aviso?.forzable && <Scanner onScan={(t) => asignar(t)} alto={210} />}
           {!aviso?.forzable && (
             <div className="fila" style={{ marginTop: '.6rem' }}>
               <input placeholder="o escribe el código" value={codigo} onChange={(e) => setCodigo(e.target.value)} className="mono" />

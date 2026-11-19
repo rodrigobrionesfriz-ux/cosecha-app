@@ -30,7 +30,7 @@ const esFrontal = (c: Cam) => /front|frontal|user|delantera/i.test(c.label);
  * La cámara se abre una vez y se pausa/reanuda (no se cierra y reabre en cada paso),
  * lo que evita que Chrome se quede sin memoria y cierre la página.
  */
-export default function Scanner({ onScan, pausado = false, oculto = false, alto = 260 }: Props) {
+export default function Scanner({ onScan, pausado = false, oculto = false, alto = 230 }: Props) {
   const idRef = useRef('qr-' + Math.random().toString(36).slice(2));
   const lectorRef = useRef<any>(null);
   const listoRef = useRef(false);
@@ -99,11 +99,10 @@ export default function Scanner({ onScan, pausado = false, oculto = false, alto 
       try {
         await lector.start(destino, {
           fps: 12,
-          qrbox: (w: number, h: number) => { const s = Math.floor(Math.min(w, h) * 0.85); return { width: s, height: s }; },
           videoConstraints: { ...base, width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' } as any] },
         } as any, alLeer, () => {});
       } catch {
-        try { await lector.start(destino, { fps: 10, qrbox: 250 } as any, alLeer, () => {}); }
+        try { await lector.start(destino, { fps: 10 } as any, alLeer, () => {}); }
         catch { if (vivo) setError('No se pudo abrir la cámara. Revisa que el navegador tenga permiso de cámara.'); return; }
       }
       listoRef.current = true;
@@ -187,12 +186,13 @@ export default function Scanner({ onScan, pausado = false, oculto = false, alto 
   const nCam = camaras.filter((c) => !esFrontal(c)).length;
 
   return (
-    <div className="scanner" style={{ minHeight: oculto ? 0 : alto, display: oculto ? 'none' : undefined }}>
-      <div id={idRef.current} style={{ width: '100%' }} onClick={reenfocar} />
+    <div className="scanner" style={{ height: alto, display: oculto ? 'none' : undefined }} onClick={reenfocar}>
+      <div id={idRef.current} className="scanner-video" />
+      {!pausado && <div className="scanner-marco" aria-hidden />}
       {enfocando && <div className="scanner-foco">Enfocando…</div>}
       {pausado && !oculto && <div className="scanner-pausa">En pausa</div>}
       {error && <div className="alerta error">{error}</div>}
-      <div className="scanner-botones">
+      <div className="scanner-botones" onClick={(e) => e.stopPropagation()}>
         {nCam > 1 && <button type="button" onClick={cambiarCamara} aria-label="Cambiar cámara">🔄</button>}
         {pasosZoom.length > 1 && pasosZoom.map((z) => (
           <button type="button" key={z} className={zoom === z ? 'sel' : ''} onClick={() => aplicarZoom(z)}>{z}×</button>
