@@ -6,14 +6,17 @@ export type Fila = {
   turno: string | null; contratista: string | null; cuadrilla: string | null; jefe: string | null;
   rut: string; trabajador: string; codigo_credencial: string; codigo_caja: string | null;
   cantidad: number; kilos_estimados: number; monto: number;
-  huerto_id: string; trabajador_id: string;
+  huerto_id: string; trabajador_id: string; cuartel_id: string; envase_id: string; calidad_id: string | null;
+  contratista_id: string | null; turno_id: string | null;
+  editada: boolean; anulada_en: string | null; motivo_anulacion: string | null; anulada_por_nombre: string | null;
 };
 
-export async function cargarEntregas(desde: string, hasta: string, huertoId?: string, incluirAnuladas = false): Promise<Fila[]> {
+/** vigentes = válidas + duplicadas por revisar (las anuladas nunca entran a reportes); anuladas = solo las anuladas */
+export async function cargarEntregas(desde: string, hasta: string, huertoId?: string, modo: 'vigentes' | 'anuladas' = 'vigentes'): Promise<Fila[]> {
   return cargarTabla<Fila>('v_entregas_detalle', '*', (q) => {
     let r = q.gte('fecha', desde).lte('fecha', hasta);
     if (huertoId) r = r.eq('huerto_id', huertoId);
-    if (!incluirAnuladas) r = r.eq('estado', 'A');
+    r = modo === 'anuladas' ? r.eq('estado', 'X') : r.in('estado', ['A', 'D']);
     return r;
   }, 'leido_en');
 }

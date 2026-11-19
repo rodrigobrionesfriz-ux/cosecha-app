@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import EditarEntrega from '@/components/EditarEntrega';
 import { useAuth } from '@/lib/auth';
 import { useTabla } from '@/lib/datos';
 import { agrupar, Agregado, cargarEntregas, Fila, totales } from '@/lib/reportes';
@@ -18,25 +18,13 @@ export default function Reportes() {
   const [filas, setFilas] = useState<Fila[] | null>(null);
   const [cargando, setCargando] = useState(false);
   const [tab, setTab] = useState<(typeof TABS)[number]>('Por trabajador');
-  const [verAnuladas, setVerAnuladas] = useState(false);
+  const [accion, setAccion] = useState<{ fila: Fila; modo: 'editar' | 'anular' | 'validar' } | null>(null);
   const [buscar, setBuscar] = useState('');
 
   async function consultar() {
     setCargando(true);
-    try { setFilas(await cargarEntregas(desde, hasta, huerto || undefined, true)); } catch (e: any) { alert(e.message); }
+    try { setFilas(await cargarEntregas(desde, hasta, huerto || undefined)); } catch (e: any) { alert(e.message); }
     setCargando(false);
-  }
-
-  async function anular(f: Fila) {
-    const motivo = prompt(`Anular entrega de ${f.trabajador} (${f.cantidad} ${f.envase}). Motivo:`);
-    if (motivo === null) return;
-    const { error } = await supabase.from('entregas').update({ estado: 'X', observacion: motivo || 'Anulada' }).eq('id', f.id);
-    if (error) alert(error.message); else consultar();
-  }
-  async function validar(f: Fila) {
-    if (!confirm('¿Marcar esta lectura duplicada como válida?')) return;
-    const { error } = await supabase.from('entregas').update({ estado: 'A' }).eq('id', f.id);
-    if (error) alert(error.message); else consultar();
   }
 
   let datos: Agregado[] = [];
@@ -87,7 +75,7 @@ export default function Reportes() {
   }
 
   const b = buscar.toLowerCase();
-  const detalle = v.filter((f) => (verAnuladas || f.estado !== 'X') && (!b || `${f.trabajador} ${f.rut} ${f.cuartel} ${f.codigo_caja ?? ''}`.toLowerCase().includes(b)));
+  const detalle = v.filter((f) => (!b || `${f.trabajador} ${f.rut} ${f.cuartel} ${f.codigo_caja ?? ''}`.toLowerCase().includes(b)));
   const t = totales(datos);
   const nDup = v.filter((f) => f.estado === 'D').length;
 
@@ -118,7 +106,6 @@ export default function Reportes() {
               {tab === 'Detalle' && (
                 <>
                   <input placeholder="Filtrar…" value={buscar} onChange={(e) => setBuscar(e.target.value)} style={{ width: 200 }} />
-                  <label className="check"><input type="checkbox" checked={verAnuladas} onChange={(e) => setVerAnuladas(e.target.checked)} /> Ver anuladas</label>
                 </>
               )}
               <button onClick={exportar}>⬇ Exportar a Excel (CSV)</button>
@@ -157,12 +144,15 @@ export default function Reportes() {
                       <td>
                         {f.estado === 'A' && <span className="badge ok">Válida</span>}
                         {f.estado === 'D' && <span className="badge av" title={f.observacion || ''}>Duplicada</span>}
-                        {f.estado === 'X' && <span className="badge err" title={f.observacion || ''}>Anulada</span>}
+                        {f.editada && <> <span className="badge" title="Editado por administración; ver historial en Anulados y cambios">Editada</span></>}
                       </td>
                       {perfil?.rol === 'admin' && (
                         <td>
-                          {f.estado === 'A' && <button className="chico peligro" onClick={() => anular(f)}>Anular</button>}
-                          {f.estado === 'D' && <button className="chico" onClick={() => validar(f)}>Validar</button>}
+                          <span className="acciones" style={{ flexWrap: 'nowrap' }}>
+                            {f.estado === 'D' && <button className="chico" onClick={() => setAccion({ fila: f, modo: 'validar' })}>Validar</button>}
+                            <button className="chico" onClick={() => setAccion({ fila: f, modo: 'editar' })}>Editar</button>
+                            <button className="chico peligro" onClick={() => setAccion({ fila: f, modo: 'anular' })}>Anular</button>
+                          </span>
                         </td>
                       )}
                     </tr>
@@ -173,6 +163,11 @@ export default function Reportes() {
           )}
         </>
       )}
+      {accion && (
+        <EditarEntrega fila={accion.fila} modo={accion.modo} onCerrar={() => setAccion(null)}
+          onListo={() => { setAccion(null); consultar(); }} />
+      )}
+      <p className="muted" style={{ marginTop: '1rem' }}>Los registros anulados no aparecen aquí ni suman en pagos. Revísalos en <a href="/admin/anulados/">Anulados y cambios</a>.</p>
     </div>
   );
 }

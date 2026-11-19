@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 const MENU = [
   { href: '/admin/', t: 'Resumen', i: '📊' },
   { href: '/admin/reportes/', t: 'Reportes y pagos', i: '💵' },
+  { href: '/admin/anulados/', t: 'Anulados y cambios', i: '🗂️' },
   { href: '/admin/trabajadores/', t: 'Trabajadores', i: '👷' },
   { href: '/admin/tarjetas/', t: 'Tarjetas QR', i: '🪪' },
   { href: '/admin/maestros/', t: 'Huertos y maestros', i: '🌳' },

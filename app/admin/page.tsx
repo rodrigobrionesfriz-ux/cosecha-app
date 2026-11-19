@@ -13,7 +13,7 @@ export default function Resumen() {
 
   async function cargar() {
     setCargando(true);
-    try { setFilas(await cargarEntregas(fecha, fecha, undefined, true)); } catch {}
+    try { setFilas(await cargarEntregas(fecha, fecha)); } catch {}
     setCargando(false);
   }
   useEffect(() => { cargar(); const t = setInterval(cargar, 60000); return () => clearInterval(t); }, [fecha]); // eslint-disable-line
