@@ -1,5 +1,6 @@
 'use client';
-import { Dia, Maestros, configDe, faltantesDia } from '@/lib/campo';
+import { useEffect, useState } from 'react';
+import { Dia, Maestros, configDe, faltantesAdmin, faltantesDia, jornadaActual } from '@/lib/campo';
 
 export default function DiaTab({ m, dia, setDia, listo }: { m: Maestros; dia: Dia; setDia: (d: Dia) => void; listo: () => void }) {
   const cfg = configDe(m, dia.huerto_id);
@@ -7,6 +8,16 @@ export default function DiaTab({ m, dia, setDia, listo }: { m: Maestros; dia: Di
   const variedad = (id: string) => m.variedades.find((v) => v.id === id)?.nombre;
   const cuadrillas = m.cuadrillas.filter((c) => !c.huerto_id || c.huerto_id === dia.huerto_id);
   const falta = faltantesDia(dia, cfg, m);
+  const faltaAdmin = dia.huerto_id ? faltantesAdmin(cfg, m) : [];
+  const envase = m.envases.find((e) => e.id === cfg.envase_id);
+  const calidad = m.calidades.find((c) => c.id === cfg.calidad_id);
+  const [jornada, setJornada] = useState(jornadaActual(m, cfg));
+
+  useEffect(() => {
+    setJornada(jornadaActual(m, cfg));
+    const t = setInterval(() => setJornada(jornadaActual(m, cfg)), 60000);
+    return () => clearInterval(t);
+  }, [m, cfg.hora_inicio_tarde]); // eslint-disable-line
 
   const sel = (k: keyof Dia, label: string, opciones: { v: string; t: string }[], req = false) => (
     <div className="campo">
@@ -27,20 +38,32 @@ export default function DiaTab({ m, dia, setDia, listo }: { m: Maestros; dia: Di
       <h2 style={{ marginTop: 0 }}>Configuración del día</h2>
       {sel('huerto_id', 'Huerto', m.huertos.map((h) => ({ v: h.id, t: h.nombre })), true)}
       {sel('cuartel_id', 'Cuartel', cuarteles.map((c) => ({ v: c.id, t: c.nombre + (c.variedad_id ? ` · ${variedad(c.variedad_id)}` : '') })), true)}
-      {sel('envase_id', 'Envase', m.envases.map((e) => ({ v: e.id, t: e.nombre + (Number(e.kilos_referencia) ? ` (${e.kilos_referencia} kg)` : '') })), true)}
-      {m.calidades.length > 0 && sel('calidad_id', 'Calidad', m.calidades.map((c) => ({ v: c.id, t: c.nombre })), cfg.exige_calidad)}
-      {m.turnos.length > 0 && sel('turno_id', 'Turno', m.turnos.map((c) => ({ v: c.id, t: c.nombre })), cfg.exige_turno)}
       {m.contratistas.length > 0 && sel('contratista_id', 'Contratista (si toda la cuadrilla es de uno)', m.contratistas.map((c) => ({ v: c.id, t: c.nombre })), cfg.exige_contratista)}
       {cuadrillas.length > 0 && sel('cuadrilla_id', 'Cuadrilla', cuadrillas.map((c) => ({ v: c.id, t: c.nombre })))}
 
+      {dia.huerto_id && (
+        <div className="tarjeta fijos">
+          <div className="muted" style={{ fontSize: '.8rem', marginBottom: '.4rem' }}>Definido por administración</div>
+          <div className="fijo"><span>Envase</span><b>{envase ? `${envase.nombre}${Number(envase.kilos_referencia) ? ` (${envase.kilos_referencia} kg)` : ''}` : '—'}</b></div>
+          <div className="fijo"><span>Calidad</span><b>{calidad?.nombre ?? (m.calidades.length ? '—' : 'No aplica')}</b></div>
+          <div className="fijo"><span>Jornada</span><b>{jornada.nombre} <span className="badge">automática</span></b></div>
+        </div>
+      )}
+
+      {faltaAdmin.length > 0 && (
+        <div className="alerta error">
+          El administrador aún no define <b>{faltaAdmin.join(' y ')}</b> para este huerto. No se puede registrar hasta que lo haga (Panel → Reglas y tarifas) y sincronices.
+        </div>
+      )}
+
       {falta.length > 0 ? (
         <div className="alerta aviso">Falta: {falta.join(', ')}.</div>
-      ) : (
+      ) : !faltaAdmin.length && (
         <button className="primario grande" onClick={listo}>Listo, a registrar</button>
       )}
       <p className="muted">
         Modo: <b>{cfg.modo_captura === 'credencial_caja' ? 'credencial + QR de cada caja' : 'credencial + cantidad'}</b>.
-        La configuración queda guardada en el teléfono hasta que la cambies.
+        La jornada cambia a Tarde a las {(cfg.hora_inicio_tarde || '13:00').slice(0, 5)}.
       </p>
     </div>
   );

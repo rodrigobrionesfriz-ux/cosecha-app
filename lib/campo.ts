@@ -19,12 +19,26 @@ export type Config = {
   modo_captura: 'credencial_cantidad' | 'credencial_caja';
   horas_bloqueo_caja: number; segundos_entre_lecturas: number; max_cajas_por_lectura: number;
   exige_calidad: boolean; exige_turno: boolean; exige_contratista: boolean; con_gps: boolean; permite_rut_extranjero: boolean;
+  envase_id: string | null; calidad_id: string | null; hora_inicio_tarde: string;
 };
 
 export const CONFIG_DEF: Config = {
   modo_captura: 'credencial_cantidad', horas_bloqueo_caja: 12, segundos_entre_lecturas: 10, max_cajas_por_lectura: 10,
   exige_calidad: true, exige_turno: false, exige_contratista: false, con_gps: false, permite_rut_extranjero: true,
+  envase_id: null, calidad_id: null, hora_inicio_tarde: '13:00',
 };
+
+const sinTilde = (t: string) => (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+/** Jornada según la hora de Chile: antes de hora_inicio_tarde es Mañana, después Tarde */
+export function jornadaActual(m: Maestros, cfg: Config, fecha = new Date()): { id: string | null; nombre: string; esTarde: boolean } {
+  const hm = new Intl.DateTimeFormat('es-CL', { timeZone: 'America/Santiago', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(fecha);
+  const [h, mi] = hm.split(':').map(Number);
+  const [ch, cm] = (cfg.hora_inicio_tarde || '13:00').split(':').map(Number);
+  const esTarde = h * 60 + mi >= ch * 60 + (cm || 0);
+  const t = m.turnos.find((x) => sinTilde(x.nombre).includes(esTarde ? 'tarde' : 'manana'));
+  return { id: t?.id ?? null, nombre: t?.nombre ?? (esTarde ? 'Tarde' : 'Mañana'), esTarde };
+}
 
 export async function leerMaestros(): Promise<Maestros> {
   const k = ['huertos', 'cuarteles', 'variedades', 'especies', 'envases', 'calidades', 'turnos', 'contratistas', 'cuadrillas', 'config_huerto', 'trabajadores', 'credenciales', 'cajas_servidor', 'ultima_descarga'];
@@ -96,10 +110,15 @@ export function guardarDia(d: Dia) {
 export function faltantesDia(d: Dia, cfg: Config, m: Maestros): string[] {
   const f: string[] = [];
   if (!d.huerto_id || !m.huertos.some((x) => x.id === d.huerto_id)) f.push('huerto');
-  if (!d.cuartel_id || !m.cuarteles.some((x) => x.id === d.cuartel_id)) f.push('cuartel');
-  if (!d.envase_id || !m.envases.some((x) => x.id === d.envase_id)) f.push('envase');
-  if (cfg.exige_calidad && m.calidades.length && !d.calidad_id) f.push('calidad');
-  if (cfg.exige_turno && m.turnos.length && !d.turno_id) f.push('turno');
+  if (!d.cuartel_id || !m.cuarteles.some((x) => x.id === d.cuartel_id && x.huerto_id === d.huerto_id)) f.push('cuartel');
   if (cfg.exige_contratista && m.contratistas.length && !d.contratista_id) f.push('contratista');
+  return f;
+}
+
+/** Lo que define el administrador y falta (el jefe no lo puede corregir) */
+export function faltantesAdmin(cfg: Config, m: Maestros): string[] {
+  const f: string[] = [];
+  if (!cfg.envase_id || !m.envases.some((x) => x.id === cfg.envase_id)) f.push('envase');
+  if (m.calidades.length && (!cfg.calidad_id || !m.calidades.some((x) => x.id === cfg.calidad_id))) f.push('calidad');
   return f;
 }

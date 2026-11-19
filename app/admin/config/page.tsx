@@ -15,6 +15,9 @@ const DEF = {
   exige_contratista: false,
   con_gps: false,
   permite_rut_extranjero: true,
+  envase_id: null,
+  calidad_id: null,
+  hora_inicio_tarde: '13:00',
 };
 
 export default function Config() {
@@ -50,7 +53,7 @@ export default function Config() {
     <div>
       <h1>Reglas y tarifas</h1>
 
-      <h2>Reglas de captura por huerto</h2>
+      <h2>Configuración por huerto</h2>
       {!huertos.filas.length && <div className="alerta aviso">Primero crea un huerto en <a href="/admin/maestros/">Huertos y maestros</a>.</div>}
       {huertos.filas.length > 0 && (
         <div className="campo" style={{ maxWidth: 320 }}>
@@ -62,6 +65,31 @@ export default function Config() {
       )}
       {cfg && (
         <form className="tarjeta" onSubmit={guardar}>
+          <h3 style={{ marginTop: 0 }}>Lo que ve el jefe de cuadrilla (no lo puede cambiar)</h3>
+          <div className="fila">
+            <div className="campo">
+              <label>Envase *</label>
+              <select required value={cfg.envase_id ?? ''} onChange={(e) => set('envase_id', e.target.value || null)}>
+                <option value="">Seleccionar…</option>
+                {envases.filas.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+              </select>
+            </div>
+            <div className="campo">
+              <label>Calidad *</label>
+              <select required={calidades.filas.length > 0} value={cfg.calidad_id ?? ''} onChange={(e) => set('calidad_id', e.target.value || null)}>
+                <option value="">Seleccionar…</option>
+                {calidades.filas.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+              </select>
+            </div>
+            <div className="campo">
+              <label>Jornada Tarde desde (hora)</label>
+              <input type="time" value={(cfg.hora_inicio_tarde || '13:00').slice(0, 5)} onChange={(e) => set('hora_inicio_tarde', e.target.value)} />
+            </div>
+          </div>
+          <p className="muted" style={{ marginTop: 0 }}>
+            La jornada se asigna sola: antes de esa hora es <b>Mañana</b> y desde esa hora es <b>Tarde</b>, usando los turnos que contienen esas palabras en su nombre.
+          </p>
+          <h3>Reglas de captura</h3>
           <div className="fila">
             <div className="campo">
               <label>Modo de registro</label>
@@ -85,8 +113,6 @@ export default function Config() {
           </div>
           <div className="fila" style={{ gap: '1.2rem' }}>
             {[
-              ['exige_calidad', 'Exigir calidad'],
-              ['exige_turno', 'Exigir turno'],
               ['exige_contratista', 'Exigir contratista'],
               ['con_gps', 'Guardar ubicación GPS'],
               ['permite_rut_extranjero', 'Permitir trabajadores extranjeros (sin RUT)'],

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Scanner from '@/components/Scanner';
 import { db, EntregaLocal, idDispositivo } from '@/lib/offline';
-import { Config, Dia, Maestros, faltantesDia, nombreTrabajador } from '@/lib/campo';
+import { Config, Dia, Maestros, faltantesAdmin, faltantesDia, jornadaActual, nombreTrabajador } from '@/lib/campo';
 import { beep, hablar, hoyISO, normalizarCodigo, num, tipoCodigo, uuid, vibrar } from '@/lib/util';
 import type { Perfil } from '@/lib/auth';
 
@@ -21,9 +21,11 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
   const posRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const falta = faltantesDia(dia, cfg, m);
-  const envase = m.envases.find((e) => e.id === dia.envase_id);
+  const faltaAdmin = faltantesAdmin(cfg, m);
+  const envase = m.envases.find((e) => e.id === cfg.envase_id);
   const cuartel = m.cuarteles.find((c) => c.id === dia.cuartel_id);
-  const calidad = m.calidades.find((c) => c.id === dia.calidad_id);
+  const calidad = m.calidades.find((c) => c.id === cfg.calidad_id);
+  const jornada = jornadaActual(m, cfg);
 
   // GPS opcional
   useEffect(() => {
@@ -73,7 +75,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
   }
 
   async function onScan(texto: string) {
-    if (falta.length) return;
+    if (falta.length || faltaAdmin.length) return;
     const codigo = normalizarCodigo(texto);
     const tipo = tipoCodigo(codigo);
     if (paso === 'credencial' || paso === 'confirmar') {
@@ -104,9 +106,9 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
       huerto_id: dia.huerto_id!,
       cuartel_id: dia.cuartel_id!,
       variedad_id: cuartel?.variedad_id ?? null,
-      envase_id: dia.envase_id!,
-      calidad_id: dia.calidad_id ?? null,
-      turno_id: dia.turno_id ?? null,
+      envase_id: cfg.envase_id!,
+      calidad_id: cfg.calidad_id ?? null,
+      turno_id: jornadaActual(m, cfg, ahora).id,
       contratista_id: dia.contratista_id ?? t.contratista_id ?? null,
       cuadrilla_id: dia.cuadrilla_id ?? null,
       trabajador_id: t.id,
@@ -148,6 +150,14 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
 
   function cancelar() { setPaso('credencial'); setActual(null); setMsg(null); }
 
+  if (faltaAdmin.length && !falta.length) {
+    return (
+      <div className="alerta error">
+        El administrador aún no define <b>{faltaAdmin.join(' y ')}</b> para este huerto. Avísale y luego toca Sincronizar.
+      </div>
+    );
+  }
+
   if (falta.length) {
     return (
       <div>
@@ -163,17 +173,10 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
   return (
     <div>
       <div className="contexto">
-        <span>{envase?.nombre}{calidad ? ` · ${calidad.nombre}` : ''}</span>
+        <span>{envase?.nombre}{calidad ? ` · ${calidad.nombre}` : ''} · {jornada.nombre.replace(/^jornada\s+/i, '')}</span>
         <span><b>{num(totalHoy.envases)}</b> hoy · {totalHoy.trabajadores} trab.</span>
       </div>
 
-      {m.calidades.length > 1 && (
-        <div className="acciones" style={{ marginBottom: '.6rem' }}>
-          {m.calidades.map((c) => (
-            <button key={c.id} className={`chico ${dia.calidad_id === c.id ? 'primario' : ''}`} onClick={() => setDia({ ...dia, calidad_id: c.id })}>{c.alias || c.nombre}</button>
-          ))}
-        </div>
-      )}
 
       {escaneando && <Scanner onScan={onScan} pausado={paso === 'confirmar'} />}
 
