@@ -190,7 +190,8 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
       </div>
 
 
-      {escaneando && <Scanner onScan={onScan} pausado={paso === 'confirmar'} />}
+      {/* La cámara queda abierta siempre; en 'cantidad' se oculta y se pausa */}
+      <Scanner onScan={onScan} pausado={!escaneando || paso === 'confirmar'} oculto={paso === 'cantidad'} />
 
       <p className="muted" style={{ textAlign: 'center', margin: '.5rem 0' }}>
         {paso === 'credencial' && 'Apunta a la credencial (o al carnet) del trabajador · toca la imagen para enfocar'}

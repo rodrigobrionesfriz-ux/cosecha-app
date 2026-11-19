@@ -4,36 +4,42 @@ import { useEffect, useRef, useState } from 'react';
 type Props = {
   onScan: (texto: string) => void;
   pausado?: boolean;
+  oculto?: boolean;
   alto?: number;
 };
 
 type Cam = { id: string; label: string };
 
 const CAM_KEY = 'cosecha-camara';
+const ESTADO = { NO_INICIADO: 1, ESCANEANDO: 2, PAUSADO: 3 };
 
-/** Elige la cámara trasera principal: en Android suele ser "camera2 0, facing back". La gran angular no enfoca de cerca. */
+// Lista de cámaras: se pide una sola vez por sesión (cada consulta abre la cámara un instante)
+let camarasCache: Cam[] | null = null;
+// Un solo lector activo a la vez: si se monta otro, espera a que el anterior suelte la cámara
+let liberacionPendiente: Promise<void> = Promise.resolve();
+
 function elegirTrasera(cams: Cam[]): Cam | undefined {
   const traseras = cams.filter((c) => /back|rear|trasera|environment|posterior/i.test(c.label));
   const lista = traseras.length ? traseras : cams;
   return lista.find((c) => /\b0\b/.test(c.label)) || lista[0];
 }
+const esFrontal = (c: Cam) => /front|frontal|user|delantera/i.test(c.label);
 
 /**
  * Lector QR con la cámara trasera.
- * - Alta resolución + enfoque continuo (los QR del carnet son densos).
- * - Usa el lector nativo de Android (BarcodeDetector) cuando existe.
- * - Tocar la imagen reenfoca; botones de zoom y de cambio de cámara.
- * - Ignora la misma lectura repetida durante 2,5 s.
+ * La cámara se abre una vez y se pausa/reanuda (no se cierra y reabre en cada paso),
+ * lo que evita que Chrome se quede sin memoria y cierre la página.
  */
-export default function Scanner({ onScan, pausado = false, alto = 260 }: Props) {
+export default function Scanner({ onScan, pausado = false, oculto = false, alto = 260 }: Props) {
   const idRef = useRef('qr-' + Math.random().toString(36).slice(2));
   const lectorRef = useRef<any>(null);
+  const listoRef = useRef(false);
   const ultimoRef = useRef<{ t: string; ts: number }>({ t: '', ts: 0 });
   const cbRef = useRef(onScan);
   const pausaRef = useRef(pausado);
   const [error, setError] = useState('');
   const [linterna, setLinterna] = useState(false);
-  const [camaras, setCamaras] = useState<Cam[]>([]);
+  const [camaras, setCamaras] = useState<Cam[]>(camarasCache || []);
   const [camId, setCamId] = useState<string | null>(null);
   const [zoomCap, setZoomCap] = useState<{ min: number; max: number } | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -41,31 +47,38 @@ export default function Scanner({ onScan, pausado = false, alto = 260 }: Props) 
   cbRef.current = onScan;
   pausaRef.current = pausado;
 
-  // 1) Descubrir cámaras una sola vez
+  // 1) Elegir cámara
   useEffect(() => {
     let vivo = true;
     (async () => {
       try {
-        const { Html5Qrcode } = await import('html5-qrcode');
-        const cams: Cam[] = await Html5Qrcode.getCameras();
+        if (!camarasCache) {
+          const { Html5Qrcode } = await import('html5-qrcode');
+          await liberacionPendiente;
+          camarasCache = await Html5Qrcode.getCameras();
+        }
         if (!vivo) return;
-        setCamaras(cams);
+        setCamaras(camarasCache!);
         const guardada = localStorage.getItem(CAM_KEY);
-        const elegida = cams.find((c) => c.id === guardada) || elegirTrasera(cams);
+        const elegida = camarasCache!.find((c) => c.id === guardada) || elegirTrasera(camarasCache!);
         setCamId(elegida?.id ?? 'environment');
       } catch {
-        if (vivo) setCamId('environment'); // sin permiso para listar: usar la trasera por defecto
+        if (vivo) setCamId('environment');
       }
     })();
     return () => { vivo = false; };
   }, []);
 
-  // 2) Iniciar la cámara elegida
+  // 2) Abrir la cámara (una vez por cámara elegida)
   useEffect(() => {
     if (!camId) return;
     let vivo = true;
     setError('');
-    (async () => {
+    listoRef.current = false;
+
+    const arranque = (async () => {
+      await liberacionPendiente; // esperar a que otro lector haya soltado la cámara
+      if (!vivo) return;
       const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
       if (!vivo) return;
       const lector = new Html5Qrcode(idRef.current, {
@@ -74,52 +87,65 @@ export default function Scanner({ onScan, pausado = false, alto = 260 }: Props) 
         verbose: false,
       } as any);
       lectorRef.current = lector;
+      const alLeer = (texto: string) => {
+        if (pausaRef.current) return;
+        const ahora = Date.now();
+        if (texto === ultimoRef.current.t && ahora - ultimoRef.current.ts < 2500) return;
+        ultimoRef.current = { t: texto, ts: ahora };
+        cbRef.current(texto);
+      };
+      const destino = camId === 'environment' ? { facingMode: 'environment' } : camId;
       const base: MediaTrackConstraints = camId === 'environment' ? { facingMode: { ideal: 'environment' } } : { deviceId: { exact: camId } };
       try {
-        await lector.start(
-          camId === 'environment' ? { facingMode: 'environment' } : camId,
-          {
-            fps: 15,
-            qrbox: (w: number, h: number) => { const s = Math.floor(Math.min(w, h) * 0.85); return { width: s, height: s }; },
-            videoConstraints: { ...base, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' } as any] },
-          } as any,
-          (texto: string) => {
-            if (pausaRef.current) return;
-            const ahora = Date.now();
-            if (texto === ultimoRef.current.t && ahora - ultimoRef.current.ts < 2500) return;
-            ultimoRef.current = { t: texto, ts: ahora };
-            cbRef.current(texto);
-          },
-          () => {}
-        );
-        if (!vivo) return;
-        // Capacidades reales del lente: enfoque continuo y zoom
-        try {
-          const cap: any = lector.getRunningTrackCapabilities?.() || {};
-          if (Array.isArray(cap.focusMode) && cap.focusMode.includes('continuous')) {
-            await lector.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] } as any);
-          }
-          if (cap.zoom && cap.zoom.max > 1) setZoomCap({ min: cap.zoom.min || 1, max: Math.min(cap.zoom.max, 5) });
-          else setZoomCap(null);
-          setZoom(1);
-        } catch {}
-      } catch (e: any) {
-        // Si la resolución alta no es compatible, reintentar simple
-        try {
-          await lector.start(camId === 'environment' ? { facingMode: 'environment' } : camId, { fps: 12, qrbox: 260 } as any,
-            (t: string) => { if (!pausaRef.current) cbRef.current(t); }, () => {});
-        } catch {
-          setError('No se pudo abrir la cámara. Revisa que el navegador tenga permiso de cámara.');
-        }
+        await lector.start(destino, {
+          fps: 12,
+          qrbox: (w: number, h: number) => { const s = Math.floor(Math.min(w, h) * 0.85); return { width: s, height: s }; },
+          videoConstraints: { ...base, width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' } as any] },
+        } as any, alLeer, () => {});
+      } catch {
+        try { await lector.start(destino, { fps: 10, qrbox: 250 } as any, alLeer, () => {}); }
+        catch { if (vivo) setError('No se pudo abrir la cámara. Revisa que el navegador tenga permiso de cámara.'); return; }
       }
+      listoRef.current = true;
+      if (!vivo) return;
+      if (pausaRef.current) { try { lector.pause(true); } catch {} }
+      try {
+        const cap: any = lector.getRunningTrackCapabilities?.() || {};
+        if (Array.isArray(cap.focusMode) && cap.focusMode.includes('continuous')) {
+          await lector.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] } as any);
+        }
+        setZoomCap(cap.zoom && cap.zoom.max > 1 ? { min: cap.zoom.min || 1, max: Math.min(cap.zoom.max, 5) } : null);
+        setZoom(1);
+      } catch {}
     })();
+
     return () => {
       vivo = false;
-      const l = lectorRef.current;
-      lectorRef.current = null;
-      if (l) l.stop().then(() => l.clear()).catch(() => {});
+      // Cerrar solo cuando el arranque terminó; los siguientes lectores esperan esta promesa
+      liberacionPendiente = arranque.then(async () => {
+        const l = lectorRef.current;
+        lectorRef.current = null;
+        listoRef.current = false;
+        if (!l) return;
+        try {
+          const st = l.getState?.();
+          if (st === ESTADO.ESCANEANDO || st === ESTADO.PAUSADO) await l.stop();
+          l.clear();
+        } catch {}
+      }).catch(() => {});
     };
   }, [camId]);
+
+  // 3) Pausar / reanudar sin cerrar la cámara
+  useEffect(() => {
+    const l = lectorRef.current;
+    if (!l || !listoRef.current) return;
+    try {
+      const st = l.getState?.();
+      if (pausado && st === ESTADO.ESCANEANDO) l.pause(true);
+      if (!pausado && st === ESTADO.PAUSADO) l.resume();
+    } catch {}
+  }, [pausado]);
 
   async function toggleLinterna() {
     try {
@@ -135,20 +161,19 @@ export default function Scanner({ onScan, pausado = false, alto = 260 }: Props) 
     } catch {}
   }
 
-  /** Tocar la imagen: fuerza un reenfoque */
   async function reenfocar() {
     const l = lectorRef.current;
-    if (!l) return;
+    if (!l || !listoRef.current || pausaRef.current) return;
     setEnfocando(true);
     try {
       await l.applyVideoConstraints({ advanced: [{ focusMode: 'single-shot' }] } as any);
-      setTimeout(() => l.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] } as any).catch(() => {}), 800);
+      setTimeout(() => { lectorRef.current?.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] } as any).catch(() => {}); }, 800);
     } catch {}
     setTimeout(() => setEnfocando(false), 700);
   }
 
   function cambiarCamara() {
-    const traseras = camaras.filter((c) => !/front|frontal|user|delantera/i.test(c.label));
+    const traseras = camaras.filter((c) => !esFrontal(c));
     const lista = traseras.length > 1 ? traseras : camaras;
     if (lista.length < 2) return;
     const i = lista.findIndex((c) => c.id === camId);
@@ -159,13 +184,13 @@ export default function Scanner({ onScan, pausado = false, alto = 260 }: Props) 
   }
 
   const pasosZoom = zoomCap ? [1, 2, 3].filter((z) => z >= zoomCap.min && z <= zoomCap.max) : [];
-  const nCam = camaras.filter((c) => !/front|frontal|user|delantera/i.test(c.label)).length;
+  const nCam = camaras.filter((c) => !esFrontal(c)).length;
 
   return (
-    <div className="scanner" style={{ minHeight: alto }}>
+    <div className="scanner" style={{ minHeight: oculto ? 0 : alto, display: oculto ? 'none' : undefined }}>
       <div id={idRef.current} style={{ width: '100%' }} onClick={reenfocar} />
       {enfocando && <div className="scanner-foco">Enfocando…</div>}
-      {pausado && <div className="scanner-pausa">En pausa</div>}
+      {pausado && !oculto && <div className="scanner-pausa">En pausa</div>}
       {error && <div className="alerta error">{error}</div>}
       <div className="scanner-botones">
         {nCam > 1 && <button type="button" onClick={cambiarCamara} aria-label="Cambiar cámara">🔄</button>}
