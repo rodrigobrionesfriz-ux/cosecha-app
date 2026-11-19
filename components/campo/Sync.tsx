@@ -1,0 +1,73 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { db, idDispositivo } from '@/lib/offline';
+import { useAuth } from '@/lib/auth';
+import { horaCorta } from '@/lib/util';
+
+const RESULTADOS: Record<string, string> = {
+  CR: 'Asignada', DR: 'El trabajador ya tenía otra credencial', DC: 'Credencial en uso por otro trabajador',
+  CI: 'Credencial no existe o está anulada', RI: 'RUT inválido', TB: 'Trabajador bloqueado', TN: 'Trabajador nuevo sin nombre',
+};
+
+export default function Sync({ online, pendientes, sincronizando, ultimo, ultimaDescarga, onSync }: {
+  online: boolean; pendientes: number; sincronizando: boolean;
+  ultimo: { ok: boolean; msg: string; cuando: string } | null; ultimaDescarga: string | null; onSync: () => void;
+}) {
+  const { perfil, salir } = useAuth();
+  const [asig, setAsig] = useState<any[]>([]);
+  const [instalable, setInstalable] = useState<any>(null);
+
+  useEffect(() => {
+    db.asignaciones.toArray().then((l) => setAsig(l.sort((a, b) => b.creado_en.localeCompare(a.creado_en)).slice(0, 30)));
+  }, [pendientes, sincronizando]);
+
+  useEffect(() => {
+    const h = (e: any) => { e.preventDefault(); setInstalable(e); };
+    window.addEventListener('beforeinstallprompt', h);
+    return () => window.removeEventListener('beforeinstallprompt', h);
+  }, []);
+
+  const conProblema = asig.filter((a) => a.sync && a.resultado && a.resultado !== 'CR');
+
+  return (
+    <div>
+      <div className={`alerta ${online ? 'ok' : 'aviso'}`}>
+        {online ? 'Con conexión.' : 'Sin señal. Todo se guarda en el teléfono y se sube al volver la conexión.'}
+      </div>
+      <div className="kpis" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <div className="kpi"><div className="v">{pendientes}</div><div className="l">Registros por subir</div></div>
+        <div className="kpi"><div className="v">{ultimaDescarga ? horaCorta(ultimaDescarga) : '—'}</div><div className="l">Última actualización</div></div>
+      </div>
+      <button className="primario grande" onClick={onSync} disabled={!online || sincronizando}>
+        {sincronizando ? 'Sincronizando…' : 'Sincronizar ahora'}
+      </button>
+      {ultimo && <div className={`alerta ${ultimo.ok ? 'ok' : 'error'}`}>{horaCorta(ultimo.cuando)} · {ultimo.msg}</div>}
+
+      {conProblema.length > 0 && (
+        <>
+          <h3>Credenciales rechazadas por el servidor</h3>
+          <ul className="lista-entregas">
+            {conProblema.map((a) => (
+              <li key={a.id}><span>{a.nombres || a.rut}<br /><span className="muted mono">{a.codigo}</span></span><span className="badge err">{RESULTADOS[a.resultado] || a.resultado}</span></li>
+            ))}
+          </ul>
+          <p className="muted">Las entregas de estos trabajadores quedan pendientes hasta corregir la credencial.</p>
+        </>
+      )}
+
+      {instalable && (
+        <button className="grande" style={{ marginTop: '1rem' }} onClick={() => { instalable.prompt(); setInstalable(null); }}>📲 Instalar app en este teléfono</button>
+      )}
+
+      <div className="tarjeta" style={{ marginTop: '1.2rem' }}>
+        <div className="muted">Usuario: <b>{perfil?.nombre}</b> ({perfil?.email})</div>
+        <div className="muted">Empresa: {perfil?.empresa?.nombre}</div>
+        <div className="muted">Dispositivo: <span className="mono">{idDispositivo()}</span></div>
+        <button className="chico" style={{ marginTop: '.6rem' }} onClick={() => {
+          if (pendientes && !confirm(`Hay ${pendientes} registros sin subir. Si sales, siguen guardados en el teléfono. ¿Salir?`)) return;
+          salir();
+        }}>Cerrar sesión</button>
+      </div>
+    </div>
+  );
+}
