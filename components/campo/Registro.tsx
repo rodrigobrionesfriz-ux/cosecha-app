@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Scanner from '@/components/Scanner';
-import { db, EntregaLocal, idDispositivo } from '@/lib/offline';
+import { db, EntregaLocal, idDispositivo, vigente } from '@/lib/offline';
 import { Config, Dia, Maestros, faltantesAdmin, faltantesDia, jornadaActual, nombreTrabajador } from '@/lib/campo';
 import { beep, hablar, hoyISO, normalizarCodigo, num, rutDesdeQR, tipoCodigo, uuid, vibrar } from '@/lib/util';
 import type { Perfil } from '@/lib/auth';
@@ -36,13 +36,13 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
   }, [cfg.con_gps]);
 
   async function refrescarTotales() {
-    const hoy = await db.entregas.where('fecha').equals(hoyISO()).toArray();
+    const hoy = (await db.entregas.where('fecha').equals(hoyISO()).toArray()).filter(vigente);
     setTotalHoy({ envases: hoy.reduce((s, e) => s + Number(e.cantidad), 0), trabajadores: new Set(hoy.map((e) => e.trabajador_id)).size });
   }
-  useEffect(() => { refrescarTotales(); }, []);
+  useEffect(() => { refrescarTotales(); }, [m]); // m cambia tras cada sincronización
 
   async function totalTrabajador(tid: string) {
-    const l = await db.entregas.where('trabajador_id').equals(tid).and((e) => e.fecha === hoyISO()).toArray();
+    const l = await db.entregas.where('trabajador_id').equals(tid).and((e) => e.fecha === hoyISO() && vigente(e)).toArray();
     return { envases: l.reduce((s, e) => s + Number(e.cantidad), 0), entregas: l.length, ultima: l.map((e) => e.leido_en).sort().pop() };
   }
 
@@ -100,7 +100,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
       if (tipo !== 'B') return error('No es una etiqueta de caja', codigo.slice(0, 40));
       // caja ya leída (en este teléfono o en el servidor) dentro de la ventana de bloqueo
       const limite = Date.now() - cfg.horas_bloqueo_caja * 3600 * 1000;
-      const local = await db.entregas.where('codigo_caja').equals(codigo).toArray();
+      const local = (await db.entregas.where('codigo_caja').equals(codigo).toArray()).filter(vigente);
       const usada = local.some((e) => new Date(e.leido_en).getTime() > limite) ||
         m.cajas_servidor.some((c) => c.codigo_caja === codigo && new Date(c.leido_en).getTime() > limite);
       if (usada) return error('Caja ya registrada', `${codigo} se leyó en las últimas ${cfg.horas_bloqueo_caja} h.`);
@@ -150,7 +150,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
   }
 
   async function deshacer() {
-    const ult = await db.entregas.where('fecha').equals(hoyISO()).reverse().sortBy('leido_en');
+    const ult = (await db.entregas.where('fecha').equals(hoyISO()).reverse().sortBy('leido_en')).filter(vigente);
     const u = ult[0];
     if (!u) return;
     if (u.sync === 1) { alert('La última entrega ya se subió. Pide al administrador que la anule.'); return; }

@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { db, EntregaLocal } from '@/lib/offline';
+import { db, EntregaLocal, vigente } from '@/lib/offline';
 import { Maestros } from '@/lib/campo';
 import { horaCorta, hoyISO, num } from '@/lib/util';
 
@@ -13,18 +13,19 @@ export default function Resumen({ m, onCambio }: { m: Maestros; onCambio: () => 
     l.sort((a, b) => b.leido_en.localeCompare(a.leido_en));
     setLista(l);
   }
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => { cargar(); }, [m]); // se recarga tras cada sincronización
 
   const porTrab = new Map<string, { nombre: string; envases: number; entregas: number; ultima: string }>();
-  for (const e of lista) {
+  const validas = lista.filter(vigente);
+  for (const e of validas) {
     const a = porTrab.get(e.trabajador_id) || { nombre: e.trabajador_nombre || '', envases: 0, entregas: 0, ultima: e.leido_en };
     a.envases += Number(e.cantidad); a.entregas++;
     if (e.leido_en > a.ultima) a.ultima = e.leido_en;
     porTrab.set(e.trabajador_id, a);
   }
   const ranking = [...porTrab.values()].sort((a, b) => b.envases - a.envases);
-  const total = lista.reduce((s, e) => s + Number(e.cantidad), 0);
-  const kilos = lista.reduce((s, e) => s + Number(e.kilos_estimados), 0);
+  const total = validas.reduce((s, e) => s + Number(e.cantidad), 0);
+  const kilos = validas.reduce((s, e) => s + Number(e.kilos_estimados), 0);
   const cuartel = (id: string) => m.cuarteles.find((c) => c.id === id)?.nombre ?? '';
 
   async function borrar(e: EntregaLocal) {
@@ -60,7 +61,10 @@ export default function Resumen({ m, onCambio }: { m: Maestros; onCambio: () => 
           {lista.slice(0, 100).map((e) => (
             <li key={e.id}>
               <span>
-                {horaCorta(e.leido_en)} · {e.trabajador_nombre}<br />
+                <span style={e.estado === 'X' ? { textDecoration: 'line-through', opacity: .6 } : undefined}>{horaCorta(e.leido_en)} · {e.trabajador_nombre}</span>
+                {e.estado === 'X' && <> <span className="badge err">Anulada</span></>}
+                {e.estado === 'D' && <> <span className="badge av">Duplicada</span></>}
+                {e.editada && e.estado !== 'X' && <> <span className="badge">Corregida</span></>}<br />
                 <span className="muted">{cuartel(e.cuartel_id)}{e.codigo_caja ? ` · ${e.codigo_caja}` : ''}</span>
               </span>
               <span className="acciones">

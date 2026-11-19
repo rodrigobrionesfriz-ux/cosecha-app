@@ -28,6 +28,8 @@ export type EntregaLocal = {
   jefe_user_id: string;
   // solo local
   trabajador_nombre?: string;
+  estado?: 'A' | 'D' | 'X';
+  editada?: boolean;
   sync: 0 | 1;
   error?: string | null;
 };
@@ -168,10 +170,42 @@ export async function subirPendientes(): Promise<{ entregas: number; asignacione
   return { entregas: nEnt, asignaciones: nAsig, errores };
 }
 
+/** Entrega que cuenta en los totales del teléfono (las anuladas o duplicadas no suman) */
+export const vigente = (e: EntregaLocal) => !e.estado || e.estado === 'A';
+
+/**
+ * Trae del servidor las entregas de los últimos 7 días registradas por este usuario
+ * y aplica en el teléfono las ediciones y anulaciones hechas por administración.
+ */
+export async function bajarEntregasPropias(): Promise<number> {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u?.user) return 0;
+  const desde = hoyISO(new Date(Date.now() - 7 * 86400000));
+  const remotas = await traerTodo('entregas',
+    'id,empresa_id,huerto_id,cuartel_id,variedad_id,envase_id,calidad_id,turno_id,contratista_id,cuadrilla_id,trabajador_id,codigo_credencial,codigo_caja,cantidad,kilos_estimados,leido_en,fecha,lat,lng,dispositivo,jefe_user_id,estado,editada',
+    (q) => q.eq('jefe_user_id', u.user.id).gte('fecha', desde));
+  const trabajadores: any[] = (await getCache('trabajadores')) || [];
+  const nombre = (id: string) => { const t = trabajadores.find((x) => x.id === id); return t ? `${t.nombres ?? ''} ${t.apellido_paterno ?? ''}`.trim() : ''; };
+  let cambios = 0;
+  await db.transaction('rw', db.entregas, async () => {
+    for (const r of remotas) {
+      const local = await db.entregas.get(r.id);
+      if (local && local.sync === 0) continue; // aún no se sube: manda el teléfono
+      const nueva: EntregaLocal = { ...(local || {}), ...r, cantidad: Number(r.cantidad), kilos_estimados: Number(r.kilos_estimados), trabajador_nombre: nombre(r.trabajador_id) || local?.trabajador_nombre, sync: 1 } as EntregaLocal;
+      if (!local || local.cantidad !== nueva.cantidad || local.estado !== nueva.estado || local.cuartel_id !== nueva.cuartel_id ||
+          local.trabajador_id !== nueva.trabajador_id || local.envase_id !== nueva.envase_id || local.fecha !== nueva.fecha) cambios++;
+      await db.entregas.put(nueva);
+    }
+  });
+  return cambios;
+}
+
 export async function sincronizar() {
   const r = await subirPendientes();
   await descargarMaestros();
-  return r;
+  let actualizadas = 0;
+  try { actualizadas = await bajarEntregasPropias(); } catch {}
+  return { ...r, actualizadas };
 }
 
 export async function limpiarAntiguas() {
