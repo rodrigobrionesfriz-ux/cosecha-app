@@ -3,19 +3,20 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 
 const MENU = [
-  { href: '/admin/', t: 'Resumen' },
-  { href: '/admin/reportes/', t: 'Reportes y pagos' },
-  { href: '/admin/trabajadores/', t: 'Trabajadores' },
-  { href: '/admin/tarjetas/', t: 'Tarjetas QR' },
-  { href: '/admin/maestros/', t: 'Huertos y maestros' },
-  { href: '/admin/config/', t: 'Reglas y tarifas' },
-  { href: '/admin/usuarios/', t: 'Usuarios' },
-  { href: '/campo/', t: '📱 App de terreno' },
+  { href: '/admin/', t: 'Resumen', i: '📊' },
+  { href: '/admin/reportes/', t: 'Reportes y pagos', i: '💵' },
+  { href: '/admin/trabajadores/', t: 'Trabajadores', i: '👷' },
+  { href: '/admin/tarjetas/', t: 'Tarjetas QR', i: '🪪' },
+  { href: '/admin/maestros/', t: 'Huertos y maestros', i: '🌳' },
+  { href: '/admin/config/', t: 'Reglas y tarifas', i: '⚙️' },
+  { href: '/admin/usuarios/', t: 'Usuarios', i: '👤' },
+  { href: '/campo/', t: 'App de terreno', i: '📱' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { session, perfil, cargando, salir } = useAuth();
   const [ruta, setRuta] = useState('');
+  const [abierto, setAbierto] = useState(false);
 
   useEffect(() => { setRuta(location.pathname); }, []);
   useEffect(() => {
@@ -33,21 +34,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const activo = (h: string) => (h === '/admin/' ? ruta === '/admin/' || ruta === '/admin' : ruta.startsWith(h));
+  const actual = MENU.find((m) => activo(m.href));
 
   return (
     <div className="admin">
-      <nav className="no-print">
-        <div className="marca">🍒 Cosecha</div>
+      {/* Barra superior solo en teléfono */}
+      <header className="admin-movil no-print">
+        <span className="marca">🍒 {actual?.t ?? 'Cosecha'}</span>
+        <button className="btn-menu" onClick={() => setAbierto(!abierto)} aria-label="Menú">{abierto ? '✕' : '☰'}</button>
+      </header>
+
+      <nav className={`no-print ${abierto ? 'abierto' : ''}`}>
+        <div className="marca solo-escritorio">🍒 Cosecha</div>
         <div className="empresa">{perfil.empresa?.nombre}</div>
         {MENU.map((m) => (
-          <a key={m.href} href={m.href} className={activo(m.href) ? 'activo' : ''}>{m.t}</a>
+          <a key={m.href} href={m.href} className={activo(m.href) ? 'activo' : ''}>
+            <span className="ico">{m.i}</span>{m.t}
+          </a>
         ))}
         <div className="pie">
-          {perfil.nombre}<br />
-          <span style={{ opacity: .7 }}>{perfil.rol}</span><br />
+          {perfil.nombre} <span style={{ opacity: .7 }}>· {perfil.rol}</span><br />
           <button className="chico" onClick={salir}>Cerrar sesión</button>
         </div>
       </nav>
+      {abierto && <div className="velo no-print" onClick={() => setAbierto(false)} />}
       <main>{children}</main>
     </div>
   );

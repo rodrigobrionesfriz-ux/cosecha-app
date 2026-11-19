@@ -83,28 +83,60 @@ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
 tfoot td { font-weight: 700; background: #f8faf8; }
 
 /* ---------- Admin ---------- */
-.admin { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+.admin { display: grid; grid-template-columns: 230px minmax(0, 1fr); min-height: 100vh; }
+.admin-movil { display: none; }
 .admin nav { background: var(--verde-osc); color: #fff; padding: 1rem .6rem; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 .admin nav .marca { font-weight: 700; font-size: 1.1rem; padding: 0 .6rem .2rem; }
 .admin nav .empresa { font-size: .78rem; opacity: .75; padding: 0 .6rem 1rem; }
-.admin nav a { display: block; color: #e6efe7; text-decoration: none; padding: .55rem .7rem; border-radius: 8px; margin-bottom: 2px; }
+.admin nav a { display: flex; align-items: center; gap: .55rem; color: #e6efe7; text-decoration: none; padding: .55rem .7rem; border-radius: 8px; margin-bottom: 2px; }
+.admin nav a .ico { width: 1.3rem; text-align: center; }
 .admin nav a:hover { background: rgba(255,255,255,.08); }
 .admin nav a.activo { background: rgba(255,255,255,.16); color: #fff; font-weight: 600; }
-.admin nav .pie { margin-top: 1.5rem; padding: 0 .6rem; font-size: .8rem; opacity: .8; }
+.admin nav .pie { margin-top: 1.5rem; padding: 0 .6rem; font-size: .8rem; opacity: .85; }
 .admin nav .pie button { margin-top: .5rem; background: transparent; color: #fff; border-color: rgba(255,255,255,.3); }
-.admin main { padding: 1.5rem 2rem; max-width: 1300px; width: 100%; }
-.tabs { display: flex; gap: .3rem; flex-wrap: wrap; border-bottom: 1px solid var(--borde); margin-bottom: 1rem; }
-.tabs button { border: none; border-bottom: 3px solid transparent; border-radius: 0; background: none; padding: .6rem .8rem; color: var(--gris); }
+.admin main { padding: 1.5rem 2rem; max-width: 1300px; width: 100%; min-width: 0; }
+.velo { display: none; }
+
+/* pestañas: una sola fila desplazable */
+.tabs { display: flex; gap: .2rem; flex-wrap: nowrap; overflow-x: auto; border-bottom: 1px solid var(--borde); margin-bottom: 1rem; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { border: none; border-bottom: 3px solid transparent; border-radius: 0; background: none; padding: .6rem .8rem; color: var(--gris); flex: 0 0 auto; }
 .tabs button.activo { border-bottom-color: var(--verde); color: var(--tinta); font-weight: 600; }
 .acciones { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
-.encabezado { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.encabezado { display: flex; justify-content: space-between; align-items: center; gap: .8rem; flex-wrap: wrap; margin-bottom: 1rem; }
 .encabezado h1 { margin: 0; }
+.fila > * { min-width: 0; }
 
 @media (max-width: 800px) {
-  .admin { grid-template-columns: 1fr; }
-  .admin nav { position: static; height: auto; display: flex; flex-wrap: wrap; gap: .2rem; }
-  .admin nav .pie, .admin nav .empresa { display: none; }
-  .admin main { padding: 1rem; }
+  body { font-size: 14.5px; }
+  h1 { font-size: 1.25rem; }
+  h2 { font-size: 1.05rem; }
+  .admin { display: block; }
+  .admin-movil {
+    display: flex; position: sticky; top: 0; z-index: 30; background: var(--verde-osc); color: #fff;
+    align-items: center; justify-content: space-between; padding: .55rem .9rem;
+  }
+  .admin-movil .marca { font-weight: 700; font-size: 1.05rem; }
+  .btn-menu { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.25); font-size: 1.2rem; padding: .3rem .75rem; }
+  .admin nav {
+    display: none; position: fixed; top: 48px; left: 0; right: 0; height: auto; max-height: calc(100vh - 48px);
+    z-index: 25; padding: .4rem .6rem 1rem; box-shadow: 0 8px 20px rgba(0,0,0,.25);
+  }
+  .admin nav.abierto { display: block; }
+  .admin nav .solo-escritorio { display: none; }
+  .admin nav .empresa { padding-top: .4rem; }
+  .admin nav a { padding: .75rem .7rem; font-size: 1rem; }
+  .velo { display: block; position: fixed; inset: 48px 0 0 0; background: rgba(0,0,0,.35); z-index: 20; }
+  .admin main { padding: .9rem; }
+  .tarjeta { padding: .85rem; }
+  .admin .fila > * { flex-basis: 100%; }
+  .kpis { grid-template-columns: repeat(2, 1fr); gap: .5rem; }
+  .kpi { padding: .6rem .75rem; }
+  .kpi .v { font-size: 1.3rem; }
+  .kpi .l { font-size: .78rem; }
+  th, td { padding: .45rem .55rem; }
+  .encabezado .acciones { width: 100%; }
+  .encabezado .acciones > input { flex: 1; }
 }
 
 /* ---------- Login ---------- */
