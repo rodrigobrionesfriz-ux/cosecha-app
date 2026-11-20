@@ -8,6 +8,7 @@ export type Fila = {
   cantidad: number; kilos_estimados: number; monto: number; monto_recargo: number; monto_total: number; tarifa: number; porcentaje_contratista: number;
   huerto_id: string; trabajador_id: string; cuartel_id: string; envase_id: string; calidad_id: string | null;
   contratista_id: string | null; turno_id: string | null;
+  variedad_id: string | null; especie_id: string | null; especie: string | null; cuadrilla_id: string | null;
   editada: boolean; anulada_en: string | null; motivo_anulacion: string | null; anulada_por_nombre: string | null;
 };
 

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 
 const MENU = [
-  { href: '/admin/', t: 'Resumen', i: '📊' },
+  { href: '/admin/', t: 'Dashboard', i: '📊' },
   { href: '/admin/reportes/', t: 'Reportes y pagos', i: '💵' },
   { href: '/admin/anulados/', t: 'Anulados y cambios', i: '🗂️' },
   { href: '/admin/trabajadores/', t: 'Trabajadores', i: '👷' },

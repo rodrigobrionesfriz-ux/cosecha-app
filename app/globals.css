@@ -269,3 +269,30 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
   .no-print { display: none !important; }
   body { background: #fff; }
 }
+
+/* ---------- Dashboard ---------- */
+.dashboard .filtros { margin-bottom: 1rem; }
+.dashboard .filtros > * { flex: 0 1 200px; }
+.graf-grilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.graf-grilla .tarjeta { margin-bottom: 0; }
+.graf-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; margin-bottom: .7rem; }
+.graf-cab h3 { margin: 0; font-size: 1rem; }
+.graf-cab .muted { font-size: .8rem; }
+.graf-vacio { height: 140px; display: grid; place-items: center; }
+.barras-h { display: flex; flex-direction: column; gap: .45rem; }
+.bh-fila { display: grid; grid-template-columns: minmax(90px, 38%) 1fr auto; align-items: center; gap: .6rem; font-size: .88rem; }
+.bh-et { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tinta); }
+.bh-pista { height: 14px; }
+.bh-barra { height: 100%; min-width: 2px; background: var(--verde); border-radius: 0 4px 4px 0; }
+.bh-fila:hover .bh-barra { background: var(--verde-osc); }
+.bh-v { font-variant-numeric: tabular-nums; color: var(--tinta); min-width: 3.5rem; text-align: right; }
+.columnas { position: relative; }
+.col-tip { font-size: .85rem; min-height: 1.3rem; margin-bottom: .3rem; color: var(--tinta); }
+.col-area { display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid var(--borde); }
+.col-celda { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; cursor: pointer; }
+.col-barra { width: 100%; min-height: 2px; background: var(--verde); border-radius: 4px 4px 0 0; }
+.col-celda.activa .col-barra, .col-celda:hover .col-barra { background: var(--verde-osc); }
+.col-eje { display: flex; gap: 2px; }
+.col-et { flex: 1 1 0; text-align: center; font-size: .72rem; color: var(--gris); padding-top: .25rem; white-space: nowrap; overflow: visible; }
+@media (max-width: 800px) { .graf-grilla { grid-template-columns: 1fr; } .dashboard .filtros > * { flex-basis: 45%; } }
+@media print { .graf-grilla { grid-template-columns: 1fr 1fr; } .graf { break-inside: avoid; } }

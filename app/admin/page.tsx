@@ -1,47 +1,146 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { agrupar, cargarEntregas, Fila } from '@/lib/reportes';
+import { useEffect, useMemo, useState } from 'react';
+import { cargarEntregas, Fila } from '@/lib/reportes';
 import { useTabla } from '@/lib/datos';
 import { hoyISO, horaCorta, num } from '@/lib/util';
+import { BarrasH, Columnas, Punto, TablaPuntos, TarjetaGrafico } from '@/components/Graficos';
 
-export default function Resumen() {
-  const [fecha, setFecha] = useState(hoyISO());
+type Vista = 'Diario' | 'Temporada';
+
+/** Inicio de temporada por defecto: 1 de julio del año agrícola en curso */
+function inicioTemporada(hoy: string) {
+  const [a, m] = hoy.split('-').map(Number);
+  return `${m >= 7 ? a : a - 1}-07-01`;
+}
+
+function horaCL(iso: string) {
+  return Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: 'America/Santiago' }).format(new Date(iso)));
+}
+
+type Acum = { clave: string; etiqueta: string; envases: number; kilos: number; trab: Set<string>; monto: number };
+function acumular(filas: Fila[], clave: (f: Fila) => string, etiqueta: (f: Fila) => string) {
+  const m = new Map<string, Acum>();
+  for (const f of filas) {
+    const k = clave(f);
+    let a = m.get(k);
+    if (!a) { a = { clave: k, etiqueta: etiqueta(f), envases: 0, kilos: 0, trab: new Set(), monto: 0 }; m.set(k, a); }
+    a.envases += Number(f.cantidad);
+    a.kilos += Number(f.kilos_estimados);
+    a.monto += Number(f.monto_total ?? f.monto);
+    a.trab.add(f.trabajador_id);
+  }
+  return [...m.values()];
+}
+
+const aPuntos = (l: Acum[], detalle: (a: Acum) => string): Punto[] =>
+  l.map((a) => ({ clave: a.clave, etiqueta: a.etiqueta, valor: Math.round(a.kilos), detalle: detalle(a) }));
+
+export default function Dashboard() {
+  const hoy = hoyISO();
+  const [vista, setVista] = useState<Vista>('Diario');
+  const [fecha, setFecha] = useState(hoy);
+  const [desde, setDesde] = useState(inicioTemporada(hoy));
+  const [huertoId, setHuertoId] = useState('');
+  const [especieId, setEspecieId] = useState('');
   const [filas, setFilas] = useState<Fila[]>([]);
   const [cargando, setCargando] = useState(true);
-  const huertos = useTabla<any>('huertos', 'id', 'nombre');
-  const trab = useTabla<any>('trabajadores', 'id', 'rut');
+  const [error, setError] = useState('');
+  const huertos = useTabla<any>('huertos', 'id,nombre', 'nombre');
+  const especies = useTabla<any>('especies', 'id,nombre', 'nombre');
 
   async function cargar() {
     setCargando(true);
-    try { setFilas(await cargarEntregas(fecha, fecha)); } catch {}
+    try {
+      setFilas(await cargarEntregas(vista === 'Diario' ? fecha : desde, fecha, huertoId || undefined));
+      setError('');
+    } catch (e: any) { setError(e.message); }
     setCargando(false);
   }
-  useEffect(() => { cargar(); const t = setInterval(cargar, 60000); return () => clearInterval(t); }, [fecha]); // eslint-disable-line
+  useEffect(() => {
+    cargar();
+    if (vista !== 'Diario' || fecha !== hoy) return;
+    const t = setInterval(cargar, 60000); // el día en curso se refresca solo
+    return () => clearInterval(t);
+  }, [vista, fecha, desde, huertoId]); // eslint-disable-line
 
-  const validas = filas.filter((f) => f.estado === 'A');
-  const dupl = filas.filter((f) => f.estado === 'D');
-  const porCuartel = agrupar(validas, (f) => f.huerto + f.cuartel, (f) => f.cuartel, (f) => f.huerto).sort((a, b) => b.envases - a.envases);
-  const porTrab = agrupar(validas, (f) => f.trabajador_id, (f) => f.trabajador).sort((a, b) => b.envases - a.envases);
-  const porJefe = agrupar(validas, (f) => f.jefe || '—', (f) => f.jefe || '—');
+  const delFiltro = filas.filter((f) => !especieId || f.especie_id === especieId);
+  const validas = delFiltro.filter((f) => f.estado === 'A');
+  const dupl = delFiltro.filter((f) => f.estado === 'D');
+
+  const r = useMemo(() => {
+    const envases = validas.reduce((s, f) => s + Number(f.cantidad), 0);
+    const kilos = validas.reduce((s, f) => s + Number(f.kilos_estimados), 0);
+    const pago = validas.reduce((s, f) => s + Number(f.monto_total ?? f.monto), 0);
+    const trabajadores = new Set(validas.map((f) => f.trabajador_id)).size;
+    const jornadas = new Set(validas.map((f) => f.trabajador_id + f.fecha)).size; // trabajador-día
+    const dias = new Set(validas.map((f) => f.fecha)).size;
+
+    const porCuadrilla = acumular(validas, (f) => f.cuadrilla || f.jefe || 'Sin cuadrilla', (f) => f.cuadrilla || f.jefe || 'Sin cuadrilla')
+      .sort((a, b) => b.kilos - a.kilos);
+    const porCuartel = acumular(validas, (f) => f.huerto + '|' + f.cuartel + '|' + (f.variedad || ''), (f) => `${f.cuartel}${f.variedad ? ' (' + f.variedad + ')' : ''}`)
+      .sort((a, b) => b.kilos - a.kilos);
+    const porVariedad = acumular(validas, (f) => f.variedad || 'Sin variedad', (f) => f.variedad || 'Sin variedad').sort((a, b) => b.kilos - a.kilos);
+    const porTrab = acumular(validas, (f) => f.trabajador_id, (f) => f.trabajador).sort((a, b) => b.kilos - a.kilos);
+
+    // Por hora (diario): kilos y trabajadores distintos que entregaron en esa hora
+    const horas = acumular(validas, (f) => String(horaCL(f.leido_en)).padStart(2, '0'), (f) => `${String(horaCL(f.leido_en)).padStart(2, '0')}h`)
+      .sort((a, b) => a.clave.localeCompare(b.clave));
+    // Por día (temporada)
+    const porDia = acumular(validas, (f) => f.fecha, (f) => f.fecha.slice(8, 10) + '/' + f.fecha.slice(5, 7))
+      .sort((a, b) => a.clave.localeCompare(b.clave));
+
+    return { envases, kilos, pago, trabajadores, jornadas, dias, porCuadrilla, porCuartel, porVariedad, porTrab, horas, porDia };
+  }, [delFiltro]); // eslint-disable-line
+
+  const rendimiento = r.jornadas ? r.kilos / r.jornadas : 0;
   const ultima = validas[validas.length - 1];
-  const envases = validas.reduce((s, f) => s + Number(f.cantidad), 0);
-  const kilos = validas.reduce((s, f) => s + Number(f.kilos_estimados), 0);
-  const monto = validas.reduce((s, f) => s + Number(f.monto), 0);
-  const recargo = validas.reduce((s, f) => s + Number(f.monto_recargo || 0), 0);
+  const sinMaestros = !huertos.cargando && !huertos.filas.length;
+  const diario = vista === 'Diario';
 
-  const sinDatos = !huertos.cargando && !huertos.filas.length;
+  const detEnv = (a: Acum) => `${num(a.envases)} envases · ${a.trab.size} trab.`;
+  const pCuadrilla = aPuntos(r.porCuadrilla, detEnv);
+  const pCuartel = aPuntos(r.porCuartel, (a) => `${num(a.envases)} envases`);
+  const pVariedad = aPuntos(r.porVariedad, (a) => `${num(a.envases)} envases`);
+  const pHoraKg = aPuntos(r.horas, (a) => `${num(a.envases)} envases`);
+  const pHoraTrab: Punto[] = r.horas.map((a) => ({ clave: a.clave, etiqueta: a.etiqueta, valor: a.trab.size, detalle: `${num(a.kilos)} kg` }));
+  const pDia = aPuntos(r.porDia, detEnv);
 
   return (
-    <div>
+    <div className="dashboard">
       <div className="encabezado">
-        <h1>Resumen del día</h1>
-        <div className="acciones">
-          <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} style={{ width: 170 }} />
+        <h1>Dashboard</h1>
+        <div className="acciones no-print">
           <button onClick={cargar}>Actualizar</button>
+          <button onClick={() => window.print()}>PDF</button>
         </div>
       </div>
 
-      {sinDatos && (
+      <div className="tabs no-print">
+        {(['Diario', 'Temporada'] as Vista[]).map((v) => (
+          <button key={v} className={vista === v ? 'activo' : ''} onClick={() => setVista(v)}>{v}</button>
+        ))}
+      </div>
+
+      <div className="fila filtros">
+        {!diario && <div className="campo"><label>Inicio temporada</label><input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></div>}
+        <div className="campo"><label>{diario ? 'Fecha' : 'Hasta'}</label><input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
+        <div className="campo">
+          <label>Huerto</label>
+          <select value={huertoId} onChange={(e) => setHuertoId(e.target.value)}>
+            <option value="">Todos</option>
+            {huertos.filas.map((h) => <option key={h.id} value={h.id}>{h.nombre}</option>)}
+          </select>
+        </div>
+        <div className="campo">
+          <label>Especie</label>
+          <select value={especieId} onChange={(e) => setEspecieId(e.target.value)}>
+            <option value="">Todas</option>
+            {especies.filas.map((h) => <option key={h.id} value={h.id}>{h.nombre}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {sinMaestros && (
         <div className="tarjeta">
           <h3 style={{ marginTop: 0 }}>Primeros pasos</h3>
           <ol style={{ margin: 0, paddingLeft: '1.2rem', lineHeight: 1.8 }}>
@@ -51,18 +150,20 @@ export default function Resumen() {
             <li>Genera e imprime credenciales en <a href="/admin/tarjetas/">Tarjetas QR</a>.</li>
             <li>Invita a los jefes de cuadrilla en <a href="/admin/usuarios/">Usuarios</a>; ellos instalan la app desde <b>/campo</b> en su teléfono.</li>
           </ol>
-          {trab.filas.length === 0 && null}
         </div>
       )}
 
+      {error && <div className="alerta error">{error}</div>}
+
       <div className="kpis">
-        <div className="kpi"><div className="v">{num(envases)}</div><div className="l">Envases</div></div>
-        <div className="kpi"><div className="v">{num(kilos)}</div><div className="l">Kilos estimados</div></div>
-        <div className="kpi"><div className="v">{num(new Set(validas.map((f) => f.trabajador_id)).size)}</div><div className="l">Trabajadores</div></div>
-        <div className="kpi"><div className="v">${num(monto)}</div><div className="l">Pago cosecheros</div></div>
-        <div className="kpi"><div className="v">${num(recargo)}</div><div className="l">Recargo contratistas</div></div>
-        <div className="kpi"><div className="v">${num(monto + recargo)}</div><div className="l">Total a pagar</div></div>
-        <div className="kpi"><div className="v">{ultima ? horaCorta(ultima.leido_en) : '—'}</div><div className="l">Última lectura recibida</div></div>
+        <div className="kpi"><div className="v">{num(r.kilos)}</div><div className="l">Kilos estimados</div></div>
+        <div className="kpi"><div className="v">{num(r.envases)}</div><div className="l">Envases</div></div>
+        <div className="kpi"><div className="v">{num(r.trabajadores)}</div><div className="l">Trabajadores</div></div>
+        <div className="kpi"><div className="v">{num(rendimiento, 1)}</div><div className="l">Kg por trabajador{diario ? '' : ' al día'}</div></div>
+        <div className="kpi"><div className="v">${num(r.pago)}</div><div className="l">Total a pagar</div></div>
+        {diario
+          ? <div className="kpi"><div className="v">{ultima ? horaCorta(ultima.leido_en) : '—'}</div><div className="l">Última lectura</div></div>
+          : <div className="kpi"><div className="v">{r.dias}</div><div className="l">Días con cosecha</div></div>}
       </div>
 
       {dupl.length > 0 && (
@@ -72,39 +173,44 @@ export default function Resumen() {
       )}
       {cargando && !filas.length && <p className="muted">Cargando…</p>}
 
-      <div className="fila" style={{ alignItems: 'flex-start' }}>
-        <div style={{ flex: '1 1 380px' }}>
-          <h2>Por cuartel</h2>
-          <div className="tabla-wrap">
-            <table>
-              <thead><tr><th>Huerto</th><th>Cuartel</th><th className="n">Envases</th><th className="n">Kilos</th><th className="n">Trab.</th></tr></thead>
-              <tbody>
-                {!porCuartel.length && <tr><td colSpan={5} className="muted">Sin entregas.</td></tr>}
-                {porCuartel.map((a) => <tr key={a.clave}><td>{a.extra}</td><td>{a.etiqueta}</td><td className="n">{num(a.envases)}</td><td className="n">{num(a.kilos)}</td><td className="n">{a.trabajadores}</td></tr>)}
-              </tbody>
-            </table>
-          </div>
-          <h2>Por jefe de cuadrilla</h2>
-          <div className="tabla-wrap">
-            <table>
-              <thead><tr><th>Jefe</th><th className="n">Envases</th><th className="n">Trab.</th></tr></thead>
-              <tbody>
-                {porJefe.map((a) => <tr key={a.clave}><td>{a.etiqueta}</td><td className="n">{num(a.envases)}</td><td className="n">{a.trabajadores}</td></tr>)}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div style={{ flex: '1 1 380px' }}>
-          <h2>Trabajadores</h2>
-          <div className="tabla-wrap" style={{ maxHeight: 520, overflowY: 'auto' }}>
-            <table>
-              <thead><tr><th>#</th><th>Trabajador</th><th className="n">Envases</th><th className="n">Entregas</th><th className="n">$</th></tr></thead>
-              <tbody>
-                {porTrab.map((a, i) => <tr key={a.clave}><td className="muted">{i + 1}</td><td>{a.etiqueta}</td><td className="n">{num(a.envases)}</td><td className="n">{a.entregas}</td><td className="n">{num(a.monto)}</td></tr>)}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <div className="graf-grilla">
+        {diario ? (
+          <>
+            <TarjetaGrafico titulo="Kilos por hora" sub="Kilos estimados entregados en cada hora" tabla={<TablaPuntos datos={pHoraKg} cab="Hora" unidad="Kilos" />}>
+              <Columnas datos={pHoraKg} unidad="kg" />
+            </TarjetaGrafico>
+            <TarjetaGrafico titulo="Trabajadores por hora" sub="Trabajadores distintos que entregaron en cada hora" tabla={<TablaPuntos datos={pHoraTrab} cab="Hora" unidad="Trabajadores" />}>
+              <Columnas datos={pHoraTrab} unidad="trab." />
+            </TarjetaGrafico>
+          </>
+        ) : (
+          <TarjetaGrafico titulo="Kilos por día" sub="Avance diario de la temporada" tabla={<TablaPuntos datos={pDia} cab="Día" unidad="Kilos" />}>
+            <Columnas datos={pDia} unidad="kg" />
+          </TarjetaGrafico>
+        )}
+
+        <TarjetaGrafico titulo="Kilos por cuadrilla" sub="Cuadrilla o jefe que registró la entrega" tabla={<TablaPuntos datos={pCuadrilla} cab="Cuadrilla" unidad="Kilos" />}>
+          <BarrasH datos={pCuadrilla} unidad="kg" />
+        </TarjetaGrafico>
+
+        <TarjetaGrafico titulo="Kilos por cuartel y variedad" sub={diario ? 'Cosechado en el día' : 'Acumulado de la temporada'} tabla={<TablaPuntos datos={pCuartel} cab="Cuartel" unidad="Kilos" />}>
+          <BarrasH datos={pCuartel} unidad="kg" />
+        </TarjetaGrafico>
+
+        <TarjetaGrafico titulo="Kilos por variedad" sub={diario ? 'Cosechado en el día' : 'Acumulado de la temporada'} tabla={<TablaPuntos datos={pVariedad} cab="Variedad" unidad="Kilos" />}>
+          <BarrasH datos={pVariedad} unidad="kg" />
+        </TarjetaGrafico>
+      </div>
+
+      <h2>Trabajadores</h2>
+      <div className="tabla-wrap" style={{ maxHeight: 520, overflowY: 'auto' }}>
+        <table>
+          <thead><tr><th>#</th><th>Trabajador</th><th className="n">Envases</th><th className="n">Kilos</th><th className="n">$</th></tr></thead>
+          <tbody>
+            {!r.porTrab.length && <tr><td colSpan={5} className="muted">Sin entregas.</td></tr>}
+            {r.porTrab.map((a, i) => <tr key={a.clave}><td className="muted">{i + 1}</td><td>{a.etiqueta}</td><td className="n">{num(a.envases)}</td><td className="n">{num(a.kilos)}</td><td className="n">{num(a.monto)}</td></tr>)}
+          </tbody>
+        </table>
       </div>
     </div>
   );
