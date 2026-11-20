@@ -12,7 +12,7 @@ import Sync from '@/components/campo/Sync';
 type Tab = 'registro' | 'dia' | 'credencial' | 'resumen' | 'sync';
 
 export default function Campo() {
-  const { session, perfil, cargando } = useAuth();
+  const { session, perfil, cargando, salir } = useAuth();
   const [tab, setTab] = useState<Tab>('registro');
   const [m, setM] = useState<Maestros | null>(null);
   const [dia, setDiaState] = useState<Dia>({});
@@ -120,7 +120,15 @@ export default function Campo() {
           <div className="t">{huerto ? `${huerto.nombre} · ${cuartel?.nombre ?? 'sin cuartel'}` : 'Cosecha'}</div>
           <div className="s">{perfil.nombre} · {online ? 'en línea' : 'sin señal'}{pendientes ? ` · ${pendientes} por subir` : ''}</div>
         </div>
-        {perfil.rol === 'admin' && <a href="/admin/" style={{ color: '#fff', fontSize: '.8rem' }}>Panel</a>}
+        <div className="top-acciones">
+          {perfil.rol === 'admin' && <a href="/admin/">Panel</a>}
+          <button type="button" onClick={() => {
+            const aviso = pendientes
+              ? `Tienes ${pendientes} registro(s) sin subir. Quedan guardados en este teléfono y se subirán cuando vuelvas a entrar con tu usuario.\n\n¿Cerrar sesión?`
+              : '¿Cerrar sesión?';
+            if (confirm(aviso)) salir();
+          }}>Salir</button>
+        </div>
       </div>
 
       <div className="campo-body">
