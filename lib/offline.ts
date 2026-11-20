@@ -45,6 +45,7 @@ export type AsignacionLocal = {
   extranjero?: boolean;
   forzar?: boolean;
   creado_en: string;
+  usuario?: string; // quién la hizo en este teléfono
   sync: 0 | 1;
   resultado?: string | null;
 };
@@ -71,6 +72,36 @@ export async function getCache<T = any>(key: string): Promise<T | null> {
 }
 export async function setCache(key: string, data: any) {
   await db.cache.put({ key, data, actualizado: new Date().toISOString() });
+}
+
+/** Usuario con sesión en este teléfono (se guarda al entrar a la app de terreno) */
+export function usuarioActual(): string {
+  return localStorage.getItem('cosecha-usuario') || '';
+}
+
+/**
+ * Al cambiar de usuario en el mismo teléfono: borra lo ya subido del usuario anterior
+ * (queda en el servidor) y deja aparte lo que no alcanzó a subir.
+ */
+export async function prepararUsuario(uid: string) {
+  const previo = localStorage.getItem('cosecha-usuario');
+  if (previo === uid) return;
+  await db.entregas.filter((e) => e.sync === 1 && e.jefe_user_id !== uid).delete();
+  await db.asignaciones.filter((a) => a.sync === 1).delete();
+  localStorage.setItem('cosecha-usuario', uid);
+}
+
+/** Entregas de este usuario (en el teléfono puede haber pendientes de otro usuario) */
+export const propia = (e: EntregaLocal) => e.jefe_user_id === usuarioActual();
+
+/** Pendientes de subir: los míos y los que dejó otro usuario en este teléfono */
+export async function contarPendientes() {
+  const uid = usuarioActual();
+  const ent = await db.entregas.where('sync').equals(0).toArray();
+  const asig = await db.asignaciones.where('sync').equals(0).toArray();
+  const mias = ent.filter((e) => e.jefe_user_id === uid).length + asig.filter((a) => !a.usuario || a.usuario === uid).length;
+  const otros = ent.filter((e) => e.jefe_user_id !== uid).length + asig.filter((a) => a.usuario && a.usuario !== uid).length;
+  return { mias, otros };
 }
 
 export function idDispositivo(): string {
@@ -125,7 +156,8 @@ export async function subirPendientes(): Promise<{ entregas: number; asignacione
   const errores: string[] = [];
   let nAsig = 0;
   // 1) asignaciones primero (las entregas pueden depender de un trabajador nuevo)
-  const asig = await db.asignaciones.where('sync').equals(0).sortBy('creado_en');
+  const uid = usuarioActual();
+  const asig = (await db.asignaciones.where('sync').equals(0).sortBy('creado_en')).filter((a) => !a.usuario || a.usuario === uid);
   for (const a of asig) {
     const { data, error } = await supabase.rpc('asignar_credencial', {
       p_id: a.id, p_codigo: a.codigo, p_rut: a.rut, p_nombres: a.nombres || null,
@@ -145,7 +177,7 @@ export async function subirPendientes(): Promise<{ entregas: number; asignacione
   }
   // 2) entregas en lotes de 100, idempotente por id
   let nEnt = 0;
-  const pend = await db.entregas.where('sync').equals(0).toArray();
+  const pend = (await db.entregas.where('sync').equals(0).toArray()).filter((e) => e.jefe_user_id === uid);
   const trabajadores: any[] = (await getCache('trabajadores')) || [];
   const credenciales: any[] = (await getCache('credenciales')) || [];
   for (let i = 0; i < pend.length; i += 100) {
@@ -164,7 +196,7 @@ export async function subirPendientes(): Promise<{ entregas: number; asignacione
     await db.entregas.bulkUpdate(lote.map((e) => ({ key: e.id, changes: { sync: 1 as const, trabajador_id: e.trabajador_id, error: null } })));
     nEnt += lote.length;
   }
-  const sinResolver = await db.entregas.where('sync').equals(0).count();
+  const sinResolver = (await db.entregas.where('sync').equals(0).toArray()).filter((e) => e.jefe_user_id === uid).length;
   if (sinResolver && !errores.length) errores.push(`${sinResolver} entregas esperan que se registre la credencial del trabajador`);
   localStorage.setItem('cosecha-ultima-subida', new Date().toISOString());
   return { entregas: nEnt, asignaciones: nAsig, errores };

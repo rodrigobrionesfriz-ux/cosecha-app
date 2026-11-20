@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import CapturaQR from '@/components/CapturaQR';
-import { db, EntregaLocal, idDispositivo, vigente } from '@/lib/offline';
+import { db, EntregaLocal, idDispositivo, propia, vigente } from '@/lib/offline';
 import { Config, Dia, Maestros, faltantesAdmin, faltantesDia, jornadaActual, nombreTrabajador } from '@/lib/campo';
 import { beep, hablar, hoyISO, normalizarCodigo, num, rutDesdeQR, tipoCodigo, uuid, vibrar } from '@/lib/util';
 import type { Perfil } from '@/lib/auth';
@@ -36,13 +36,13 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
   }, [cfg.con_gps]);
 
   async function refrescarTotales() {
-    const hoy = (await db.entregas.where('fecha').equals(hoyISO()).toArray()).filter(vigente);
+    const hoy = (await db.entregas.where('fecha').equals(hoyISO()).toArray()).filter((e) => vigente(e) && propia(e));
     setTotalHoy({ envases: hoy.reduce((s, e) => s + Number(e.cantidad), 0), trabajadores: new Set(hoy.map((e) => e.trabajador_id)).size });
   }
   useEffect(() => { refrescarTotales(); }, [m]); // m cambia tras cada sincronización
 
   async function totalTrabajador(tid: string) {
-    const l = await db.entregas.where('trabajador_id').equals(tid).and((e) => e.fecha === hoyISO() && vigente(e)).toArray();
+    const l = await db.entregas.where('trabajador_id').equals(tid).and((e) => e.fecha === hoyISO() && vigente(e) && propia(e)).toArray();
     return { envases: l.reduce((s, e) => s + Number(e.cantidad), 0), entregas: l.length, ultima: l.map((e) => e.leido_en).sort().pop() };
   }
 
@@ -151,7 +151,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
   }
 
   async function deshacer() {
-    const ult = (await db.entregas.where('fecha').equals(hoyISO()).reverse().sortBy('leido_en')).filter(vigente);
+    const ult = (await db.entregas.where('fecha').equals(hoyISO()).reverse().sortBy('leido_en')).filter((e) => vigente(e) && propia(e));
     const u = ult[0];
     if (!u) return;
     if (u.sync === 1) { alert('La última entrega ya se subió. Pide al administrador que la anule.'); return; }

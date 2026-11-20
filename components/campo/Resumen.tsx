@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { db, EntregaLocal, vigente } from '@/lib/offline';
+import { db, EntregaLocal, propia, vigente } from '@/lib/offline';
 import { Maestros } from '@/lib/campo';
 import Rendimiento from './Rendimiento';
 import { horaCorta, hoyISO, num } from '@/lib/util';
@@ -14,7 +14,7 @@ export default function Resumen({ m, onCambio }: { m: Maestros; onCambio: () => 
   useEffect(() => { const t = setInterval(() => setAhora(Date.now()), 60000); return () => clearInterval(t); }, []);
 
   async function cargar() {
-    const l = await db.entregas.where('fecha').equals(hoyISO()).toArray();
+    const l = (await db.entregas.where('fecha').equals(hoyISO()).toArray()).filter(propia);
     l.sort((a, b) => b.leido_en.localeCompare(a.leido_en));
     setLista(l);
   }

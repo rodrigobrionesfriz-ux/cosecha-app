@@ -101,10 +101,10 @@ export function nombreTrabajador(t: any): string {
 }
 
 export function leerDia(): Dia {
-  try { return JSON.parse(localStorage.getItem('cosecha-dia') || '{}'); } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem('cosecha-dia-' + (localStorage.getItem('cosecha-usuario') || '')) || '{}'); } catch { return {}; }
 }
 export function guardarDia(d: Dia) {
-  localStorage.setItem('cosecha-dia', JSON.stringify(d));
+  localStorage.setItem('cosecha-dia-' + (localStorage.getItem('cosecha-usuario') || ''), JSON.stringify(d));
 }
 
 export function faltantesDia(d: Dia, cfg: Config, m: Maestros): string[] {

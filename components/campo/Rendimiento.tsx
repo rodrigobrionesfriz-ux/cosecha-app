@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import CapturaQR from '@/components/CapturaQR';
 import { supabase } from '@/lib/supabase';
-import { db, vigente } from '@/lib/offline';
+import { db, propia, vigente } from '@/lib/offline';
 import { Maestros, nombreTrabajador } from '@/lib/campo';
 import { beep, fechaCL, formatearRut, hoyISO, horaCorta, normalizarCodigo, num, rutDesdeQR, tipoCodigo, vibrar } from '@/lib/util';
 
@@ -44,12 +44,12 @@ export default function Rendimiento({ m, onCerrar }: { m: Maestros; onCerrar: ()
       if (error) throw error;
       const filas: Linea[] = (data || []).map((d: any) => ({ fecha: d.fecha, leido_en: d.leido_en, cuartel: d.cuartel, envase: d.envase, jefe: d.jefe, cantidad: Number(d.cantidad), kilos: Number(d.kilos_estimados), monto: Number(d.monto) }));
       // sumar lo de este teléfono que aún no se sube
-      const pend = (await db.entregas.where('trabajador_id').equals(t.id).toArray()).filter((e) => e.sync === 0 && e.fecha >= desde && vigente(e));
+      const pend = (await db.entregas.where('trabajador_id').equals(t.id).toArray()).filter((e) => e.sync === 0 && e.fecha >= desde && vigente(e) && propia(e));
       pend.forEach((e) => filas.unshift({ fecha: e.fecha, leido_en: e.leido_en, cuartel: m.cuarteles.find((c) => c.id === e.cuartel_id)?.nombre ?? '', envase: m.envases.find((x) => x.id === e.envase_id)?.nombre ?? '', jefe: 'Este teléfono (por subir)', cantidad: Number(e.cantidad), kilos: Number(e.kilos_estimados), monto: 0 }));
       setRes(armar(t, filas, true));
     } catch {
       // sin señal: lo que tiene este teléfono
-      const loc = (await db.entregas.where('trabajador_id').equals(t.id).toArray()).filter((e) => e.fecha >= desde && vigente(e));
+      const loc = (await db.entregas.where('trabajador_id').equals(t.id).toArray()).filter((e) => e.fecha >= desde && vigente(e) && propia(e));
       const filas: Linea[] = loc.sort((a, b) => b.leido_en.localeCompare(a.leido_en)).map((e) => ({ fecha: e.fecha, leido_en: e.leido_en, cuartel: m.cuarteles.find((c) => c.id === e.cuartel_id)?.nombre ?? '', envase: m.envases.find((x) => x.id === e.envase_id)?.nombre ?? '', jefe: null, cantidad: Number(e.cantidad), kilos: Number(e.kilos_estimados), monto: 0 }));
       setRes(armar(t, filas, false));
     }

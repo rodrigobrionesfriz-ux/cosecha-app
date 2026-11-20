@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { db, idDispositivo } from '@/lib/offline';
+import { db, idDispositivo, usuarioActual } from '@/lib/offline';
 import { useAuth } from '@/lib/auth';
 import { horaCorta } from '@/lib/util';
 
@@ -18,7 +18,7 @@ export default function Sync({ online, pendientes, sincronizando, ultimo, ultima
   const [instalable, setInstalable] = useState<any>(null);
 
   useEffect(() => {
-    db.asignaciones.toArray().then((l) => setAsig(l.sort((a, b) => b.creado_en.localeCompare(a.creado_en)).slice(0, 30)));
+    db.asignaciones.toArray().then((l) => setAsig(l.filter((a) => !a.usuario || a.usuario === usuarioActual()).sort((a, b) => b.creado_en.localeCompare(a.creado_en)).slice(0, 30)));
   }, [pendientes, sincronizando]);
 
   useEffect(() => {

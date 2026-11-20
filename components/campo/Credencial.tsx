@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import CapturaQR from '@/components/CapturaQR';
-import { db } from '@/lib/offline';
+import { db, usuarioActual } from '@/lib/offline';
 import { Config, Maestros, nombreTrabajador, registrarAsignacionLocal } from '@/lib/campo';
 import { beep, formatearRut, normalizarCodigo, normalizarRut, rutDesdeQR, rutValido, tipoCodigo, uuid, vibrar } from '@/lib/util';
 
@@ -75,7 +75,7 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
     await db.asignaciones.add({
       id: uuid(), codigo: c, rut, nombres: trabajador.nombres, apellido_paterno: trabajador.apellido_paterno || undefined,
       apellido_materno: trabajador.apellido_materno || undefined, contratista_id: trabajador.contratista_id || null,
-      extranjero, forzar, creado_en: new Date().toISOString(), sync: 0,
+      extranjero, forzar, creado_en: new Date().toISOString(), usuario: usuarioActual(), sync: 0,
     });
     await registrarAsignacionLocal(c, trabajador);
     setCodigo(c);

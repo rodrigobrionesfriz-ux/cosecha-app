@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { db, descargarMaestros, limpiarAntiguas, sincronizar } from '@/lib/offline';
+import { db, contarPendientes, descargarMaestros, limpiarAntiguas, prepararUsuario, sincronizar } from '@/lib/offline';
 import { leerMaestros, leerDia, guardarDia, Maestros, Dia, configDe, limpiarLocalesSiCorresponde } from '@/lib/campo';
 import Registro from '@/components/campo/Registro';
 import DiaTab from '@/components/campo/Dia';
@@ -18,6 +18,8 @@ export default function Campo() {
   const [dia, setDiaState] = useState<Dia>({});
   const [online, setOnline] = useState(true);
   const [pendientes, setPendientes] = useState(0);
+  const [deOtros, setDeOtros] = useState(0);
+  const [listo, setListo] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [ultimoSync, setUltimoSync] = useState<{ ok: boolean; msg: string; cuando: string } | null>(null);
   const [credPrefill, setCredPrefill] = useState('');
@@ -29,8 +31,9 @@ export default function Campo() {
 
   const recargarLocal = useCallback(async () => {
     setM(await leerMaestros());
-    const p = (await db.entregas.where('sync').equals(0).count()) + (await db.asignaciones.where('sync').equals(0).count());
-    setPendientes(p);
+    const p = await contarPendientes();
+    setPendientes(p.mias);
+    setDeOtros(p.otros);
   }, []);
 
   const sync = useCallback(async (silencioso = false) => {
@@ -54,8 +57,10 @@ export default function Campo() {
   // carga inicial
   useEffect(() => {
     if (!perfil) return;
-    setDiaState(leerDia());
     (async () => {
+      await prepararUsuario(perfil.user_id);
+      setDiaState(leerDia()); // la configuración del día es de cada usuario
+      setListo(true);
       await recargarLocal();
       const ult = await db.cache.get('ultima_descarga');
       if (!ult && navigator.onLine) {
@@ -94,7 +99,7 @@ export default function Campo() {
   if (perfil.rol === 'consulta') {
     return <div className="login"><div className="alerta aviso">Tu usuario es de solo consulta y no puede registrar cosecha.</div><a className="btn grande" href="/admin/">Ir al panel</a></div>;
   }
-  if (!m) return <div className="campo-app"><div className="campo-body muted">Preparando datos…</div></div>;
+  if (!m || !listo) return <div className="campo-app"><div className="campo-body muted">Preparando datos…</div></div>;
 
   const cfg = configDe(m, dia.huerto_id);
   const huerto = m.huertos.find((h) => h.id === dia.huerto_id);
@@ -124,6 +129,9 @@ export default function Campo() {
         )}
         {!m.ultima_descarga && (
           <div className="alerta aviso">Este teléfono aún no descarga los datos. Conéctate a internet y toca <b>Sincronizar</b>.</div>
+        )}
+        {deOtros > 0 && tab === 'sync' && (
+          <div className="alerta aviso">Este teléfono tiene {deOtros} registro(s) sin subir de <b>otro usuario</b>. Para subirlos, ese usuario debe entrar en este teléfono y sincronizar.</div>
         )}
         {tab === 'registro' && (
           <Registro m={m} dia={dia} cfg={cfg} perfil={perfil} setDia={setDia} onCambio={recargarLocal}
