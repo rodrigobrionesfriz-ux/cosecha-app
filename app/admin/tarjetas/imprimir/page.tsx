@@ -57,6 +57,42 @@ export default function Imprimir() {
     })();
   }, [perfil]);
 
+  const [exportando, setExportando] = useState('');
+
+  /** PDF con una página por etiqueta (58×30 mm): QR + código. Para abrir en la app de la impresora (OpenLabel). */
+  async function descargarPDF() {
+    setExportando('Generando PDF…');
+    try {
+      const { jsPDF } = await import('jspdf');
+      const W = 58, H = 30, Q = 22.5;
+      const doc = new jsPDF({ unit: 'mm', format: [W, H], orientation: 'landscape' });
+      items.forEach((it, i) => {
+        if (i > 0) doc.addPage([W, H], 'landscape');
+        doc.addImage(it.qr!, 'PNG', (W - Q) / 2, 1.2, Q, Q);
+        doc.setFont('courier', 'bold');
+        doc.setFontSize(9);
+        doc.text(it.codigo, W / 2, 27.6, { align: 'center' });
+      });
+      doc.save(`credenciales_58x30_${items.length}.pdf`);
+    } catch (e: any) { alert('No se pudo generar el PDF: ' + e.message); }
+    setExportando('');
+  }
+
+  /** Excel con los códigos, para importar en OpenLabel y armar la etiqueta en lote. */
+  async function descargarExcel() {
+    setExportando('Generando Excel…');
+    try {
+      const XLSX = await import('xlsx');
+      const filas = items.map((it) => ({ codigo: it.codigo, nombre: it.nombre ?? '', rut: it.rut ?? '' }));
+      const hoja = XLSX.utils.json_to_sheet(filas);
+      hoja['!cols'] = [{ wch: 22 }, { wch: 30 }, { wch: 14 }];
+      const libro = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(libro, hoja, 'Credenciales');
+      XLSX.writeFile(libro, `credenciales_${items.length}.xlsx`);
+    } catch (e: any) { alert('No se pudo generar el Excel: ' + e.message); }
+    setExportando('');
+  }
+
   const f = FORMATOS[formato];
   const porHoja = f.cols * f.rows;
   const hojas = useMemo(() => {
@@ -102,7 +138,11 @@ export default function Imprimir() {
       <div className="no-print tarjeta" style={{ maxWidth: 820, margin: '0 auto', borderRadius: 0 }}>
         <div className="encabezado" style={{ marginBottom: '.5rem' }}>
           <h1 style={{ margin: 0 }}>Imprimir {items.length} {items[0]?.tipo === 'B' ? 'etiquetas' : 'credenciales'}</h1>
-          <button className="primario" onClick={() => window.print()} disabled={!items.length}>🖨 Imprimir</button>
+          <div className="acciones">
+            <button onClick={descargarPDF} disabled={!items.length || !!exportando}>⬇ PDF 58×30</button>
+            <button onClick={descargarExcel} disabled={!items.length || !!exportando}>⬇ Excel</button>
+            <button className="primario" onClick={() => window.print()} disabled={!items.length}>🖨 Imprimir</button>
+          </div>
         </div>
         <div className="fila">
           <div className="campo">
@@ -117,6 +157,16 @@ export default function Imprimir() {
             </label>
           )}
         </div>
+        {exportando && <div className="alerta info">{exportando}</div>}
+        <details style={{ margin: '.4rem 0' }}>
+          <summary><b>Impresora de etiquetas Bluetooth (SK58 / OpenLabel)</b></summary>
+          <ol style={{ margin: '.4rem 0', paddingLeft: '1.2rem', lineHeight: 1.6 }}>
+            <li>Toca <b>⬇ PDF 58×30</b>: se descarga un PDF con una etiqueta por página (QR + código).</li>
+            <li>Abre <b>OpenLabel</b>, conecta la SK58 y elige imprimir <b>PDF</b> (o comparte el PDF a OpenLabel desde Descargas).</li>
+            <li>Configura papel <b>58×30 mm</b> e imprime todas las páginas.</li>
+          </ol>
+          <div className="muted">Alternativa: <b>⬇ Excel</b> y en OpenLabel crea una etiqueta 58×30 con un elemento QR y un texto, ambos ligados a la columna <span className="mono">codigo</span>, e imprime en lote.</div>
+        </details>
         <p className="muted" style={{ margin: 0 }}>
           En el diálogo de impresión usa escala 100% y sin márgenes del navegador. Para credenciales, imprime en cartulina y plastifica.
           {esTermica && ' En impresora térmica: en el diálogo de impresión elige el tamaño de papel igual a la etiqueta (por ejemplo 58×30 mm), márgenes "Ninguno" y escala 100%.'}
