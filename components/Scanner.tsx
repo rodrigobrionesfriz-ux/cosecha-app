@@ -11,6 +11,8 @@ type Props = {
 type Cam = { id: string; label: string };
 
 const CAM_KEY = 'cosecha-camara';
+const ZOOM_KEY = 'cosecha-zoom';
+const ZOOM_DEF = 2; // con 2× lee más rápido: el QR se ve grande sin acercar tanto el teléfono
 const ESTADO = { NO_INICIADO: 1, ESCANEANDO: 2, PAUSADO: 3 };
 
 // Lista de cámaras: se pide una sola vez por sesión (cada consulta abre la cámara un instante)
@@ -113,8 +115,16 @@ export default function Scanner({ onScan, pausado = false, oculto = false, alto 
         if (Array.isArray(cap.focusMode) && cap.focusMode.includes('continuous')) {
           await lector.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] } as any);
         }
-        setZoomCap(cap.zoom && cap.zoom.max > 1 ? { min: cap.zoom.min || 1, max: Math.min(cap.zoom.max, 5) } : null);
-        setZoom(1);
+        if (cap.zoom && cap.zoom.max > 1) {
+          const min = cap.zoom.min || 1, max = Math.min(cap.zoom.max, 5);
+          setZoomCap({ min, max });
+          const guardado = Number(localStorage.getItem(ZOOM_KEY)) || ZOOM_DEF;
+          const z = Math.min(Math.max(guardado, min), max);
+          try { await lector.applyVideoConstraints({ advanced: [{ zoom: z }] } as any); setZoom(z); } catch { setZoom(1); }
+        } else {
+          setZoomCap(null);
+          setZoom(1);
+        }
       } catch {}
     })();
 
@@ -157,6 +167,7 @@ export default function Scanner({ onScan, pausado = false, oculto = false, alto 
     try {
       await lectorRef.current?.applyVideoConstraints({ advanced: [{ zoom: z }] } as any);
       setZoom(z);
+      localStorage.setItem(ZOOM_KEY, String(z));
     } catch {}
   }
 
