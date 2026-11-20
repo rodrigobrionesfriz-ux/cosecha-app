@@ -128,12 +128,13 @@ export default function Config() {
       )}
 
       <Crud tabla="tarifas" titulo="Tarifas de pago por envase" orden="vigente_desde"
-        ayuda="Valor en $ por envase. Si una tarifa no tiene calidad, aplica a todas. Se usa la tarifa vigente más reciente a la fecha de la entrega."
+        ayuda="Pago al cosechero por envase, más el % de recargo que se paga al contratista (solo trabajadores con contratista). Si una tarifa no tiene calidad, aplica a todas. Se usa la tarifa vigente más reciente a la fecha de la entrega."
         campos={[
           { k: 'envase_id', t: 'Envase', tipo: 'select', opciones: op(envases.filas), req: true },
           { k: 'calidad_id', t: 'Calidad', tipo: 'select', opciones: op(calidades.filas) },
           { k: 'especie_id', t: 'Especie', tipo: 'select', opciones: op(especies.filas) },
-          { k: 'valor', t: 'Valor $', tipo: 'number', req: true, ancho: 130 },
+          { k: 'valor', t: 'Pago cosechero $/envase', tipo: 'number', req: true, ancho: 170 },
+          { k: 'porcentaje_contratista', t: 'Recargo contratista %', tipo: 'number', req: true, ancho: 160, def: 65 },
           { k: 'vigente_desde', t: 'Vigente desde (AAAA-MM-DD)', req: true, ancho: 200, def: new Date().toISOString().slice(0, 10) },
         ]} />
     </div>

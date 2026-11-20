@@ -61,7 +61,7 @@ export default function Reportes() {
       descargarCSV(`entregas_${desde}_${hasta}.csv`, detalle.map((f) => ({
         Fecha: fechaCL(f.fecha), Hora: horaCorta(f.leido_en), Huerto: f.huerto, Cuartel: f.cuartel, Variedad: f.variedad, RUT: f.rut,
         Trabajador: f.trabajador, Contratista: f.contratista || 'Directo', Envase: f.envase, Calidad: f.calidad, Cantidad: f.cantidad,
-        Kilos: f.kilos_estimados, Monto: f.monto, Credencial: f.codigo_credencial, Caja: f.codigo_caja, Jefe: f.jefe,
+        Kilos: f.kilos_estimados, 'Tarifa $': f.tarifa, 'Pago cosechero $': f.monto, 'Recargo contratista %': f.porcentaje_contratista, 'Recargo contratista $': f.monto_recargo, 'Total $': f.monto_total, Credencial: f.codigo_credencial, Caja: f.codigo_caja, Jefe: f.jefe,
         Estado: f.estado === 'A' ? 'Válida' : f.estado === 'D' ? 'Duplicada' : 'Anulada', Observación: f.observacion,
       })));
       return;
@@ -69,7 +69,7 @@ export default function Reportes() {
     descargarCSV(`${tab.toLowerCase().replace(/ /g, '_')}_${desde}_${hasta}.csv`, datos.map((a) => {
       const o: any = {};
       columnas.forEach((c) => (o[c.t] = val(a, c.k as string)));
-      o.Entregas = a.entregas; o.Envases = a.envases; o.Kilos = Math.round(a.kilos * 10) / 10; o['Monto $'] = Math.round(a.monto);
+      o.Entregas = a.entregas; o.Envases = a.envases; o.Kilos = Math.round(a.kilos * 10) / 10; o['Pago cosechero $'] = Math.round(a.monto); o['Recargo contratista $'] = Math.round(a.recargo); o['Total $'] = Math.round(a.total);
       return o;
     }));
   }
@@ -115,32 +115,34 @@ export default function Reportes() {
           {tab !== 'Detalle' ? (
             <div className="tabla-wrap">
               <table>
-                <thead><tr>{columnas.map((c) => <th key={c.t}>{c.t}</th>)}<th className="n">Entregas</th><th className="n">Envases</th><th className="n">Kilos est.</th>{tab !== 'Por trabajador' && tab !== 'Por día y trabajador' && <th className="n">Trab.</th>}<th className="n">Monto $</th></tr></thead>
+                <thead><tr>{columnas.map((c) => <th key={c.t}>{c.t}</th>)}<th className="n">Entregas</th><th className="n">Envases</th><th className="n">Kilos est.</th>{tab !== 'Por trabajador' && tab !== 'Por día y trabajador' && <th className="n">Trab.</th>}<th className="n">Pago cosechero $</th><th className="n">Recargo contratista $</th><th className="n">Total $</th></tr></thead>
                 <tbody>
-                  {!datos.length && <tr><td colSpan={10} className="muted">Sin datos en el período.</td></tr>}
+                  {!datos.length && <tr><td colSpan={12} className="muted">Sin datos en el período.</td></tr>}
                   {datos.map((a) => (
                     <tr key={a.clave}>
                       {columnas.map((c) => <td key={c.t}>{val(a, c.k as string)}</td>)}
                       <td className="n">{num(a.entregas)}</td><td className="n">{num(a.envases, a.envases % 1 ? 1 : 0)}</td><td className="n">{num(a.kilos)}</td>
                       {tab !== 'Por trabajador' && tab !== 'Por día y trabajador' && <td className="n">{a.trabajadores}</td>}
                       <td className="n">{num(a.monto)}</td>
+                      <td className="n">{num(a.recargo)}</td>
+                      <td className="n"><b>{num(a.total)}</b></td>
                     </tr>
                   ))}
                 </tbody>
                 {datos.length > 0 && (
-                  <tfoot><tr><td colSpan={columnas.length}>Total</td><td className="n">{num(t.entregas)}</td><td className="n">{num(t.envases)}</td><td className="n">{num(t.kilos)}</td>{tab !== 'Por trabajador' && tab !== 'Por día y trabajador' && <td></td>}<td className="n">{num(t.monto)}</td></tr></tfoot>
+                  <tfoot><tr><td colSpan={columnas.length}>Total</td><td className="n">{num(t.entregas)}</td><td className="n">{num(t.envases)}</td><td className="n">{num(t.kilos)}</td>{tab !== 'Por trabajador' && tab !== 'Por día y trabajador' && <td></td>}<td className="n">{num(t.monto)}</td><td className="n">{num(t.recargo)}</td><td className="n">{num(t.total)}</td></tr></tfoot>
                 )}
               </table>
             </div>
           ) : (
             <div className="tabla-wrap" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
               <table>
-                <thead><tr><th>Fecha</th><th>Hora</th><th>Trabajador</th><th>Cuartel</th><th>Envase</th><th>Calidad</th><th className="n">Cant.</th><th>Caja</th><th>Jefe</th><th>Estado</th>{perfil?.rol === 'admin' && <th></th>}</tr></thead>
+                <thead><tr><th>Fecha</th><th>Hora</th><th>Trabajador</th><th>Cuartel</th><th>Envase</th><th>Calidad</th><th className="n">Cant.</th><th className="n">Cosechero $</th><th className="n">Recargo $</th><th>Caja</th><th>Jefe</th><th>Estado</th>{perfil?.rol === 'admin' && <th></th>}</tr></thead>
                 <tbody>
                   {detalle.slice(-2000).reverse().map((f) => (
                     <tr key={f.id}>
                       <td>{fechaCL(f.fecha)}</td><td>{horaCorta(f.leido_en)}</td><td>{f.trabajador}</td><td>{f.cuartel}</td><td>{f.envase}</td>
-                      <td>{f.calidad || '—'}</td><td className="n">{num(f.cantidad, f.cantidad % 1 ? 1 : 0)}</td><td className="mono muted">{f.codigo_caja || ''}</td><td>{f.jefe}</td>
+                      <td>{f.calidad || '—'}</td><td className="n">{num(f.cantidad, f.cantidad % 1 ? 1 : 0)}</td><td className="n">{num(f.monto)}</td><td className="n">{f.monto_recargo ? num(f.monto_recargo) : '—'}</td><td className="mono muted">{f.codigo_caja || ''}</td><td>{f.jefe}</td>
                       <td>
                         {f.estado === 'A' && <span className="badge ok">Válida</span>}
                         {f.estado === 'D' && <span className="badge av" title={f.observacion || ''}>Duplicada</span>}

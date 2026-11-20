@@ -27,6 +27,7 @@ export default function Resumen() {
   const envases = validas.reduce((s, f) => s + Number(f.cantidad), 0);
   const kilos = validas.reduce((s, f) => s + Number(f.kilos_estimados), 0);
   const monto = validas.reduce((s, f) => s + Number(f.monto), 0);
+  const recargo = validas.reduce((s, f) => s + Number(f.monto_recargo || 0), 0);
 
   const sinDatos = !huertos.cargando && !huertos.filas.length;
 
@@ -58,7 +59,9 @@ export default function Resumen() {
         <div className="kpi"><div className="v">{num(envases)}</div><div className="l">Envases</div></div>
         <div className="kpi"><div className="v">{num(kilos)}</div><div className="l">Kilos estimados</div></div>
         <div className="kpi"><div className="v">{num(new Set(validas.map((f) => f.trabajador_id)).size)}</div><div className="l">Trabajadores</div></div>
-        <div className="kpi"><div className="v">${num(monto)}</div><div className="l">Monto a trato</div></div>
+        <div className="kpi"><div className="v">${num(monto)}</div><div className="l">Pago cosecheros</div></div>
+        <div className="kpi"><div className="v">${num(recargo)}</div><div className="l">Recargo contratistas</div></div>
+        <div className="kpi"><div className="v">${num(monto + recargo)}</div><div className="l">Total a pagar</div></div>
         <div className="kpi"><div className="v">{ultima ? horaCorta(ultima.leido_en) : '—'}</div><div className="l">Última lectura recibida</div></div>
       </div>
 
