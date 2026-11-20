@@ -44,7 +44,7 @@ export default function Inicio() {
   if (session && !perfil) {
     return (
       <div className="login">
-        <div className="logo">🍒</div>
+        <img className="logo-img" src="/logo.svg" alt="QSecha" />
         <h1>Cuenta sin acceso</h1>
         <div className="alerta aviso">
           Tu cuenta <b>{session.user.email}</b> existe, pero no está habilitada en ninguna empresa.
@@ -57,8 +57,9 @@ export default function Inicio() {
 
   return (
     <div className="login">
-      <div className="logo">🍒</div>
-      <h1>Cosecha</h1>
+      <img className="logo-img" src="/logo.svg" alt="QSecha" />
+      <h1 style={{ marginBottom: '.2rem' }}>QSecha</h1>
+      <p className="muted" style={{ textAlign: 'center', marginTop: 0 }}>Cosecha con QR</p>
       <form className="tarjeta" onSubmit={enviar}>
         <div className="campo">
           <label>Correo</label>

@@ -4,10 +4,12 @@ import { AuthProvider } from '@/lib/auth';
 import RegistrarSW from '@/components/RegistrarSW';
 
 export const metadata: Metadata = {
-  title: 'Cosecha La Cabaña',
+  title: 'QSecha · Cosecha con QR',
+  applicationName: 'QSecha',
   description: 'Registro de cosecha en terreno y administración',
   manifest: '/manifest.webmanifest',
-  icons: { icon: '/icon-192.png', apple: '/icon-192.png' },
+  icons: { icon: [{ url: '/favicon-64.png', sizes: '64x64' }, { url: '/icon-192.png', sizes: '192x192' }], apple: '/apple-touch-icon.png' },
+  appleWebApp: { capable: true, title: 'QSecha', statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = {

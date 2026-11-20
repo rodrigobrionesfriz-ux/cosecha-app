@@ -39,12 +39,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="admin">
       {/* Barra superior solo en teléfono */}
       <header className="admin-movil no-print">
-        <span className="marca">🍒 {actual?.t ?? 'Cosecha'}</span>
+        <span className="marca"><img src="/logo.svg" alt="" className="marca-ico" />{actual?.t ?? 'QSecha'}</span>
         <button className="btn-menu" onClick={() => setAbierto(!abierto)} aria-label="Menú">{abierto ? '✕' : '☰'}</button>
       </header>
 
       <nav className={`no-print ${abierto ? 'abierto' : ''}`}>
-        <div className="marca solo-escritorio">🍒 Cosecha</div>
+        <div className="marca solo-escritorio"><img src="/logo.svg" alt="" className="marca-ico" />QSecha</div>
         <div className="empresa">{perfil.empresa?.nombre}</div>
         {MENU.map((m) => (
           <a key={m.href} href={m.href} className={activo(m.href) ? 'activo' : ''}>

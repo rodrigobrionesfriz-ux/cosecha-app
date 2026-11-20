@@ -1,7 +1,7 @@
 {
-  "name": "Cosecha La Cabaña",
-  "short_name": "Cosecha",
-  "description": "Registro de cosecha en terreno",
+  "name": "QSecha · Cosecha con QR",
+  "short_name": "QSecha",
+  "description": "Registro de cosecha en terreno con credenciales QR",
   "start_url": "/campo/",
   "scope": "/",
   "display": "standalone",
@@ -10,7 +10,9 @@
   "theme_color": "#1f4a27",
   "lang": "es-CL",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

@@ -1,4 +1,4 @@
-# Cosecha La Cabaña
+# QSecha · Cosecha con QR (La Cabaña)
 
 Registro de cosecha en terreno con credenciales QR, funcionando sin señal, más un panel de administración con reportes y liquidación a trato. Inspirado en el flujo de HubCrop Harvest+, reconstruido sobre **GitHub + Vercel + Supabase**.
 

@@ -117,7 +117,7 @@ export default function Campo() {
     <div className="campo-app">
       <div className="campo-top">
         <div>
-          <div className="t">{huerto ? `${huerto.nombre} · ${cuartel?.nombre ?? 'sin cuartel'}` : 'Cosecha'}</div>
+          <div className="t">{huerto ? `${huerto.nombre} · ${cuartel?.nombre ?? 'sin cuartel'}` : 'QSecha'}</div>
           <div className="s">{perfil.nombre} · {online ? 'en línea' : 'sin señal'}{pendientes ? ` · ${pendientes} por subir` : ''}</div>
         </div>
         <div className="top-acciones">
