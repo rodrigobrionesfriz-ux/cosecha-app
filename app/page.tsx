@@ -14,7 +14,8 @@ export default function Inicio() {
   useEffect(() => {
     if (cargando || !session || !perfil) return;
     const destino = new URLSearchParams(location.search).get('ir');
-    if (destino === 'campo' || (perfil.rol === 'jefe' && destino !== 'admin')) location.replace('/campo/');
+    // Los jefes de cuadrilla solo usan la app de terreno
+    if (perfil.rol === 'jefe' || destino === 'campo') location.replace('/campo/');
     else location.replace('/admin/');
   }, [cargando, session, perfil]);
 

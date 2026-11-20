@@ -26,12 +26,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (cargando || !perfil) return <div style={{ padding: '2rem' }} className="muted">Cargando…</div>;
   if (perfil.rol === 'jefe') {
-    return (
-      <div className="login">
-        <div className="alerta aviso">Tu usuario es de terreno. El panel de administración es solo para administradores.</div>
-        <a className="btn primario grande" href="/campo/">Ir a la app de terreno</a>
-      </div>
-    );
+    // Sin acceso al panel: directo a la app de terreno
+    if (typeof window !== 'undefined') location.replace('/campo/');
+    return <div style={{ padding: '2rem' }} className="muted">Abriendo la app de terreno…</div>;
   }
 
   const activo = (h: string) => (h === '/admin/' ? ruta === '/admin/' || ruta === '/admin' : ruta.startsWith(h));
