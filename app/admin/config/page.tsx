@@ -18,8 +18,8 @@ const DEF = {
   envase_id: null,
   calidad_id: null,
   hora_inicio_tarde: '13:00',
-  usa_bins: false,
-  max_envases_bin: 0,
+  usa_bins: true,
+  max_envases_bin: 24,
   exige_calidad_recepcion: false,
 };
 
@@ -128,7 +128,7 @@ export default function Config() {
           <h3>Bins y acopio</h3>
           <div className="fila">
             <label className="check" style={{ flex: '0 1 auto' }}>
-              <input type="checkbox" checked={!!cfg.usa_bins} onChange={(e) => set('usa_bins', e.target.checked)} /> El jefe llena bins en campo (debe abrir un bin con su QR antes de registrar)
+              <input type="checkbox" checked={!!cfg.usa_bins} onChange={(e) => set('usa_bins', e.target.checked)} /> El jefe abre un bin con su tarja antes de registrar (recomendado para trazabilidad)
             </label>
             <div className="campo" style={{ flex: '0 1 220px' }}>
               <label>Máximo de envases por bin (0 = sin límite)</label>

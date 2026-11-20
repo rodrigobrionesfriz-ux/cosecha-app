@@ -147,13 +147,13 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
 
   async function cerrarBin(auto = false) {
     if (!bin) return;
-    if (!auto && !confirm(`¿Cerrar el bin ${bin.codigo} con ${num(binEnv)} envases?`)) return;
+    if (!auto && !confirm(`¿Cerrar el bin ${bin.codigo} con ${num(binEnv)}${maxBin ? ` de ${maxBin}` : ''} ${envase?.nombre?.toLowerCase() ?? 'envases'}? Queda listo para llevar al acopio.`)) return;
     await registrarEvento('cerrar', bin.codigo, {}, bin.id);
     await guardarBinAbierto(null);
     const cod = bin.codigo;
     setBin(null); setBinEnv(0);
     setPaso('credencial'); setActual(null);
-    setMsg({ t: auto ? 'av' : 'ok', titulo: auto ? 'Bin lleno y cerrado' : 'Bin cerrado', detalle: `${cod} · captura el QR del siguiente bin` });
+    setMsg({ t: auto ? 'av' : 'ok', titulo: auto ? 'Bin completo y cerrado' : 'Bin cerrado', detalle: `${cod} listo para llevar al acopio. Captura la tarja del siguiente bin.` });
     hablar(auto ? 'Bin lleno' : 'Bin cerrado');
     onCambio();
   }
@@ -246,6 +246,17 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
       </div>
 
 
+      {usaBins && bin && bin.cuartel_id !== dia.cuartel_id && (
+        <div className="alerta error">
+          El bin abierto (<b className="mono">{bin.codigo.slice(-6)}</b>) es del cuartel <b>{m.cuarteles.find((c) => c.id === bin.cuartel_id)?.nombre ?? '—'}</b>.
+          Ciérralo antes de cosechar en <b>{cuartel?.nombre}</b>, o vuelve a ese cuartel en Día.
+          <div className="acciones" style={{ marginTop: '.5rem' }}>
+            <button type="button" onClick={() => cerrarBin(false)}>Cerrar bin</button>
+            <button type="button" onClick={() => irA('dia')}>Ir a Día</button>
+          </div>
+        </div>
+      )}
+
       {usaBins && bin && (
         <div className="bin-barra">
           <div>
@@ -262,14 +273,19 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
 
       {usaBins && !bin && (
         <div>
-          <div className="alerta aviso">Para registrar, primero captura el QR del bin que va a llenar la cuadrilla.</div>
-          <CapturaQR etiqueta="Capturar bin" onScan={abrirBin} />
+          <div className="pasos">
+            <span className="hecho">1 · {cuartel?.nombre}</span>
+            <span className="actual">2 · Abrir bin</span>
+            <span>3 · Cosechar</span>
+          </div>
+          <div className="alerta aviso">Antes de cosechar, captura la tarja del bin que va a llenar la cuadrilla{maxBin ? ` (hasta ${maxBin} ${envase?.nombre?.toLowerCase() ?? 'envases'})` : ''}.</div>
+          <CapturaQR etiqueta="Capturar tarja del bin" onScan={abrirBin} />
           {msg && <div className={`resultado ${msg.t}`}><div className="nombre">{msg.titulo}</div>{msg.detalle && <div>{msg.detalle}</div>}</div>}
         </div>
       )}
 
       {/* La cámara se enciende solo al tocar Capturar y se apaga al leer */}
-      {(!usaBins || bin) && (paso === 'credencial' || paso === 'caja') && (
+      {(!usaBins || (bin && bin.cuartel_id === dia.cuartel_id)) && (paso === 'credencial' || paso === 'caja') && (
         <CapturaQR key={paso + (actual?.codigo ?? '')}
           etiqueta={paso === 'caja' ? 'Capturar caja' : 'Capturar credencial'}
           onScan={onScan} />

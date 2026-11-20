@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Dia, Maestros, configDe, faltantesAdmin, faltantesDia, jornadaActual } from '@/lib/campo';
+import { BinAbierto, leerBinAbierto } from '@/lib/bins';
 
 export default function DiaTab({ m, dia, setDia, listo }: { m: Maestros; dia: Dia; setDia: (d: Dia) => void; listo: () => void }) {
   const cfg = configDe(m, dia.huerto_id);
@@ -12,6 +13,10 @@ export default function DiaTab({ m, dia, setDia, listo }: { m: Maestros; dia: Di
   const envase = m.envases.find((e) => e.id === cfg.envase_id);
   const calidad = m.calidades.find((c) => c.id === cfg.calidad_id);
   const [jornada, setJornada] = useState(jornadaActual(m, cfg));
+  const [bin, setBin] = useState<BinAbierto | null>(null);
+  useEffect(() => { leerBinAbierto().then(setBin); }, [m]);
+  const cuartelBin = bin ? m.cuarteles.find((c) => c.id === bin.cuartel_id) : null;
+  const binOtroCuartel = !!bin && !!dia.cuartel_id && bin.cuartel_id !== dia.cuartel_id;
 
   useEffect(() => {
     setJornada(jornadaActual(m, cfg));
@@ -56,10 +61,25 @@ export default function DiaTab({ m, dia, setDia, listo }: { m: Maestros; dia: Di
         </div>
       )}
 
+      {cfg.usa_bins && bin && (
+        <div className={`alerta ${binOtroCuartel ? 'error' : 'ok'}`}>
+          Bin abierto: <b className="mono">{bin.codigo.slice(-6)}</b> del cuartel <b>{cuartelBin?.nombre ?? '—'}</b>.
+          {binOtroCuartel && ' Para cambiar de cuartel, primero cierra ese bin en Registrar.'}
+        </div>
+      )}
+
       {falta.length > 0 ? (
         <div className="alerta aviso">Falta: {falta.join(', ')}.</div>
       ) : !faltaAdmin.length && (
-        <button className="primario grande" onClick={listo}>Listo, a registrar</button>
+        <button className="primario grande" onClick={listo}>
+          {cfg.usa_bins ? (bin ? 'Listo, seguir cosechando' : 'Listo, abrir bin') : 'Listo, a registrar'}
+        </button>
+      )}
+      {cfg.usa_bins && (
+        <p className="muted">
+          Pasos del día: 1) huerto y cuartel, 2) abrir bin capturando su tarja, 3) registrar la cosecha.
+          El bin se cierra solo al llegar a {cfg.max_envases_bin || 'su máximo de'} {envase?.nombre?.toLowerCase() ?? 'envases'} y queda listo para el acopio.
+        </p>
       )}
       <p className="muted">
         Modo: <b>{cfg.modo_captura === 'credencial_caja' ? 'credencial + QR de cada caja' : 'credencial + cantidad'}</b>.

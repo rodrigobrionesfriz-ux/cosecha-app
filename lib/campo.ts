@@ -29,7 +29,7 @@ export const CONFIG_DEF: Config = {
   modo_captura: 'credencial_cantidad', horas_bloqueo_caja: 12, segundos_entre_lecturas: 10, max_cajas_por_lectura: 10,
   exige_calidad: true, exige_turno: false, exige_contratista: false, con_gps: false, permite_rut_extranjero: true,
   envase_id: null, calidad_id: null, hora_inicio_tarde: '13:00',
-  usa_bins: false, max_envases_bin: 0, exige_calidad_recepcion: false,
+  usa_bins: true, max_envases_bin: 24, exige_calidad_recepcion: false,
 };
 
 const sinTilde = (t: string) => (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
