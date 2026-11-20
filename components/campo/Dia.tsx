@@ -78,7 +78,7 @@ export default function DiaTab({ m, dia, setDia, listo }: { m: Maestros; dia: Di
       {cfg.usa_bins && (
         <p className="muted">
           Pasos del día: 1) huerto y cuartel, 2) abrir bin capturando su tarja, 3) registrar la cosecha.
-          El bin se cierra solo al llegar a {cfg.max_envases_bin || 'su máximo de'} {envase?.nombre?.toLowerCase() ?? 'envases'} y queda listo para el acopio.
+          El bin se cierra solo al llegar a {cfg.max_envases_bin || 'su máximo de'} {(() => { const t = (envase?.nombre || 'envases').toLowerCase(); return /s$/.test(t) ? t : /[aeiou]$/.test(t) ? t + 's' : t + 'es'; })()} y queda listo para el acopio.
         </p>
       )}
       <p className="muted">

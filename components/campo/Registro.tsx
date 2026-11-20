@@ -7,6 +7,9 @@ import { beep, hablar, hoyISO, normalizarCodigo, num, rutDesdeQR, tipoCodigo, uu
 import type { Perfil } from '@/lib/auth';
 import { BinAbierto, envasesEnBin, estadoBin, ESTADOS_BIN, guardarBinAbierto, leerBinAbierto, registrarEvento } from '@/lib/bins';
 
+/** Nombre del envase en plural para mensajes: Tote → totes */
+const plural = (n?: string) => { const t = (n || 'envases').toLowerCase(); return /s$/.test(t) ? t : /[aeiou]$/.test(t) ? t + 's' : t + 'es'; };
+
 type Paso = 'credencial' | 'cantidad' | 'caja' | 'confirmar';
 type Msg = { t: 'ok' | 'err' | 'av'; titulo: string; detalle?: string } | null;
 
@@ -83,7 +86,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
       return;
     }
     beep(true); vibrar(60);
-    setMsg({ t: 'ok', titulo: nombreTrabajador(t), detalle: `Lleva ${num(tot.envases)} ${envase?.nombre?.toLowerCase() ?? 'envases'} hoy` });
+    setMsg({ t: 'ok', titulo: nombreTrabajador(t), detalle: `Lleva ${num(tot.envases)} ${plural(envase?.nombre)} hoy` });
     setCant(1);
     setPaso(cfg.modo_captura === 'credencial_caja' ? 'caja' : 'cantidad');
   }
@@ -147,7 +150,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
 
   async function cerrarBin(auto = false) {
     if (!bin) return;
-    if (!auto && !confirm(`¿Cerrar el bin ${bin.codigo} con ${num(binEnv)}${maxBin ? ` de ${maxBin}` : ''} ${envase?.nombre?.toLowerCase() ?? 'envases'}? Queda listo para llevar al acopio.`)) return;
+    if (!auto && !confirm(`¿Cerrar el bin ${bin.codigo} con ${num(binEnv)}${maxBin ? ` de ${maxBin}` : ''} ${plural(envase?.nombre)}? Queda listo para llevar al acopio.`)) return;
     await registrarEvento('cerrar', bin.codigo, {}, bin.id);
     await guardarBinAbierto(null);
     const cod = bin.codigo;
@@ -278,7 +281,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
             <span className="actual">2 · Abrir bin</span>
             <span>3 · Cosechar</span>
           </div>
-          <div className="alerta aviso">Antes de cosechar, captura la tarja del bin que va a llenar la cuadrilla{maxBin ? ` (hasta ${maxBin} ${envase?.nombre?.toLowerCase() ?? 'envases'})` : ''}.</div>
+          <div className="alerta aviso">Antes de cosechar, captura la tarja del bin que va a llenar la cuadrilla{maxBin ? ` (hasta ${maxBin} ${plural(envase?.nombre)})` : ''}.</div>
           <CapturaQR etiqueta="Capturar tarja del bin" onScan={abrirBin} />
           {msg && <div className={`resultado ${msg.t}`}><div className="nombre">{msg.titulo}</div>{msg.detalle && <div>{msg.detalle}</div>}</div>}
         </div>
@@ -292,7 +295,8 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
       )}
 
       <p className="muted" style={{ textAlign: 'center', margin: '.5rem 0' }}>
-        {paso === 'credencial' && !msg && 'Toca Capturar y apunta a la credencial (o al carnet) del trabajador'}
+        {paso === 'credencial' && !msg && (!usaBins || bin) && 'Toca Capturar y apunta a la credencial (o al carnet) del trabajador'}
+        {usaBins && !bin && 'Toca Capturar y apunta a la tarja (QR) pegada en el bin'}
         {paso === 'caja' && actual && `Cajas de ${nombreTrabajador(actual.trabajador)} · una credencial distinta cambia de trabajador`}
       </p>
 
@@ -317,7 +321,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
             <button type="button" aria-label="Disminuir" disabled={cant <= 1} onClick={() => { setCant(Math.max(1, cant - 1)); vibrar(20); }}>−</button>
             <div className="valor">
               <div className="n">{cant}</div>
-              <div className="u">{envase?.nombre?.toLowerCase() ?? 'envases'}</div>
+              <div className="u">{plural(envase?.nombre)}</div>
             </div>
             <button type="button" aria-label="Aumentar" disabled={cant >= max} onClick={() => { setCant(Math.min(max, cant + 1)); vibrar(20); }}>+</button>
           </div>
@@ -334,8 +338,8 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
         <details style={{ marginTop: '1rem' }}>
           <summary className="muted">Opciones</summary>
           <div className="fila" style={{ marginTop: '.6rem' }}>
-            <input placeholder="Escribir código de credencial" value={manual} onChange={(e) => setManual(e.target.value)} className="mono" />
-            <button style={{ flex: '0 0 auto' }} onClick={() => { onScan(manual); setManual(''); }}>OK</button>
+            <input placeholder={usaBins && !bin ? 'Escribir código de la tarja del bin' : 'Escribir código de credencial'} value={manual} onChange={(e) => setManual(e.target.value)} className="mono" />
+            <button style={{ flex: '0 0 auto' }} onClick={() => { if (usaBins && !bin) abrirBin(manual); else onScan(manual); setManual(''); }}>OK</button>
           </div>
           <button className="peligro" style={{ marginTop: '.6rem' }} onClick={deshacer}>Deshacer última entrega</button>
         </details>
