@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { errorAmigable, useTabla } from '@/lib/datos';
 import { fechaCL } from '@/lib/util';
 
-const ROLES: Record<string, string> = { admin: 'Administrador', jefe: 'Jefe de cuadrilla (terreno)', consulta: 'Solo consulta' };
+const ROLES: Record<string, string> = { admin: 'Administrador', jefe: 'Jefe de cuadrilla (terreno)', acopio: 'Operador de acopio', consulta: 'Solo consulta' };
 
 export default function Usuarios() {
   const { perfil } = useAuth();

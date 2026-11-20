@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 const MENU = [
   { href: '/admin/', t: 'Dashboard', i: '📊' },
   { href: '/admin/reportes/', t: 'Reportes y pagos', i: '💵' },
+  { href: '/admin/acopio/', t: 'Acopio y bins', i: '🧺' },
   { href: '/admin/anulados/', t: 'Anulados y cambios', i: '🗂️' },
   { href: '/admin/trabajadores/', t: 'Trabajadores', i: '👷' },
   { href: '/admin/tarjetas/', t: 'Tarjetas QR', i: '🪪' },
@@ -13,6 +14,7 @@ const MENU = [
   { href: '/admin/usuarios/', t: 'Usuarios', i: '👤' },
   { href: '/admin/borrado/', t: 'Borrado de datos', i: '🗑️' },
   { href: '/campo/', t: 'App de terreno', i: '📱' },
+  { href: '/acopio/', t: 'App de acopio', i: '🏭' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -26,6 +28,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [cargando, session, perfil]);
 
   if (cargando || !perfil) return <div style={{ padding: '2rem' }} className="muted">Cargando…</div>;
+  if (perfil.rol === 'acopio') {
+    if (typeof window !== 'undefined') location.replace('/acopio/');
+    return <div style={{ padding: '2rem' }} className="muted">Abriendo la app de acopio…</div>;
+  }
   if (perfil.rol === 'jefe') {
     // Sin acceso al panel: directo a la app de terreno
     if (typeof window !== 'undefined') location.replace('/campo/');

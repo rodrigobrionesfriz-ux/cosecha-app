@@ -18,6 +18,9 @@ const DEF = {
   envase_id: null,
   calidad_id: null,
   hora_inicio_tarde: '13:00',
+  usa_bins: false,
+  max_envases_bin: 0,
+  exige_calidad_recepcion: false,
 };
 
 export default function Config() {
@@ -121,6 +124,19 @@ export default function Config() {
                 <input type="checkbox" checked={!!cfg[k]} onChange={(e) => set(k, e.target.checked)} /> {t}
               </label>
             ))}
+          </div>
+          <h3>Bins y acopio</h3>
+          <div className="fila">
+            <label className="check" style={{ flex: '0 1 auto' }}>
+              <input type="checkbox" checked={!!cfg.usa_bins} onChange={(e) => set('usa_bins', e.target.checked)} /> El jefe llena bins en campo (debe abrir un bin con su QR antes de registrar)
+            </label>
+            <div className="campo" style={{ flex: '0 1 220px' }}>
+              <label>Máximo de envases por bin (0 = sin límite)</label>
+              <input type="number" min={0} value={cfg.max_envases_bin ?? 0} onChange={(e) => set('max_envases_bin', +e.target.value)} disabled={!cfg.usa_bins} />
+            </div>
+            <label className="check" style={{ flex: '0 1 auto' }}>
+              <input type="checkbox" checked={!!cfg.exige_calidad_recepcion} onChange={(e) => set('exige_calidad_recepcion', e.target.checked)} /> Pedir parámetros de calidad al recibir en acopio
+            </label>
           </div>
           {msg && <div className={`alerta ${msg.t}`}>{msg.m}</div>}
           <div style={{ marginTop: '1rem' }}><button className="primario">Guardar reglas</button></div>

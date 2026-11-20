@@ -5,6 +5,7 @@ import { db, EntregaLocal, idDispositivo, propia, vigente } from '@/lib/offline'
 import { Config, Dia, Maestros, faltantesAdmin, faltantesDia, jornadaActual, nombreTrabajador } from '@/lib/campo';
 import { beep, hablar, hoyISO, normalizarCodigo, num, rutDesdeQR, tipoCodigo, uuid, vibrar } from '@/lib/util';
 import type { Perfil } from '@/lib/auth';
+import { BinAbierto, envasesEnBin, estadoBin, ESTADOS_BIN, guardarBinAbierto, leerBinAbierto, registrarEvento } from '@/lib/bins';
 
 type Paso = 'credencial' | 'cantidad' | 'caja' | 'confirmar';
 type Msg = { t: 'ok' | 'err' | 'av'; titulo: string; detalle?: string } | null;
@@ -20,6 +21,17 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
   const [manual, setManual] = useState('');
   const [cant, setCant] = useState(1);
   const posRef = useRef<{ lat: number; lng: number } | null>(null);
+  const [bin, setBin] = useState<BinAbierto | null>(null);
+  const [binEnv, setBinEnv] = useState(0);
+  const usaBins = !!cfg.usa_bins;
+  const maxBin = Number(cfg.max_envases_bin || 0);
+
+  async function refrescarBin() {
+    const b = await leerBinAbierto();
+    setBin(b);
+    setBinEnv(b ? await envasesEnBin(b.id) : 0);
+  }
+  useEffect(() => { refrescarBin(); }, [m]); // eslint-disable-line
 
   const falta = faltantesDia(dia, cfg, m);
   const faltaAdmin = faltantesAdmin(cfg, m);
@@ -80,6 +92,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
     if (falta.length || faltaAdmin.length) return;
     const codigo = normalizarCodigo(texto);
     const tipo = tipoCodigo(codigo);
+    if (tipo === 'L') return error(bin ? 'Ya tienes un bin abierto' : 'Etiqueta de bin', bin ? `Cierra ${bin.codigo} antes de abrir otro.` : 'Usa el botón Capturar bin.');
     // Respaldo: carnet del trabajador en vez de la credencial
     if (!tipo && (paso === 'credencial' || paso === 'confirmar' || paso === 'caja')) {
       const rut = rutDesdeQR(texto);
@@ -109,6 +122,42 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
     }
   }
 
+  async function abrirBin(texto: string): Promise<boolean | void> {
+    const codigo = normalizarCodigo(texto);
+    if (tipoCodigo(codigo) !== 'L') { error('No es una etiqueta de bin', codigo.slice(0, 40)); return false; }
+    const est = await estadoBin(codigo);
+    if (est.estado) {
+      const propio = est.estado === 'abierto' && est.abierto_por === perfil.user_id;
+      return error(propio ? 'Ese bin ya lo tienes abierto' : 'Bin en uso', `${codigo} · ${ESTADOS_BIN[est.estado] ?? est.estado}${est.servidor?.abierto_por_nombre ? ' por ' + est.servidor.abierto_por_nombre : ''}`);
+    }
+    const id = uuid();
+    await registrarEvento('abrir', codigo, {
+      huerto_id: dia.huerto_id, cuartel_id: dia.cuartel_id, variedad_id: cuartel?.variedad_id ?? null,
+      envase_id: cfg.envase_id, cuadrilla_id: dia.cuadrilla_id ?? null,
+      lat: posRef.current?.lat ?? null, lng: posRef.current?.lng ?? null,
+    }, id);
+    const b: BinAbierto = { id, codigo, abierto_en: new Date().toISOString(), huerto_id: dia.huerto_id!, cuartel_id: dia.cuartel_id! };
+    await guardarBinAbierto(b);
+    setBin(b); setBinEnv(0);
+    beep(true); vibrar(80);
+    setMsg({ t: 'ok', titulo: 'Bin abierto', detalle: `${codigo}${maxBin ? ` · hasta ${maxBin} envases` : ''}` });
+    hablar('Bin abierto');
+    onCambio();
+  }
+
+  async function cerrarBin(auto = false) {
+    if (!bin) return;
+    if (!auto && !confirm(`¿Cerrar el bin ${bin.codigo} con ${num(binEnv)} envases?`)) return;
+    await registrarEvento('cerrar', bin.codigo, {}, bin.id);
+    await guardarBinAbierto(null);
+    const cod = bin.codigo;
+    setBin(null); setBinEnv(0);
+    setPaso('credencial'); setActual(null);
+    setMsg({ t: auto ? 'av' : 'ok', titulo: auto ? 'Bin lleno y cerrado' : 'Bin cerrado', detalle: `${cod} · captura el QR del siguiente bin` });
+    hablar(auto ? 'Bin lleno' : 'Bin cerrado');
+    onCambio();
+  }
+
   async function guardar(cantidad: number, codigoCaja: string | null = null) {
     if (!actual) return;
     const t = actual.trabajador;
@@ -135,6 +184,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
       lng: posRef.current?.lng ?? null,
       dispositivo: idDispositivo(),
       jefe_user_id: perfil.user_id,
+      bin_id: usaBins ? bin?.id ?? null : null,
       trabajador_nombre: nombreTrabajador(t),
       sync: 0,
     };
@@ -148,6 +198,11 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
     refrescarTotales();
     onCambio();
     if (cfg.modo_captura === 'credencial_cantidad') { setPaso('credencial'); setActual(null); }
+    if (usaBins && bin) {
+      const n = await envasesEnBin(bin.id);
+      setBinEnv(n);
+      if (maxBin > 0 && n >= maxBin) await cerrarBin(true);
+    }
   }
 
   async function deshacer() {
@@ -180,7 +235,8 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
     );
   }
 
-  const max = Math.max(1, Math.min(cfg.max_cajas_por_lectura || 10, 50));
+  const restanBin = usaBins && maxBin > 0 ? Math.max(1, maxBin - binEnv) : Infinity;
+  const max = Math.max(1, Math.min(cfg.max_cajas_por_lectura || 10, 50, restanBin));
 
   return (
     <div>
@@ -190,8 +246,30 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
       </div>
 
 
+      {usaBins && bin && (
+        <div className="bin-barra">
+          <div>
+            <div className="muted">Bin abierto</div>
+            <b className="mono">{bin.codigo.slice(-6)}</b>
+          </div>
+          <div className="bin-n">
+            <b>{num(binEnv)}</b>{maxBin ? <span className="muted"> / {maxBin}</span> : null}
+            {maxBin > 0 && <div className="bin-pista"><div style={{ width: `${Math.min(100, (binEnv / maxBin) * 100)}%` }} /></div>}
+          </div>
+          <button type="button" className="chico" onClick={() => cerrarBin(false)}>Cerrar bin</button>
+        </div>
+      )}
+
+      {usaBins && !bin && (
+        <div>
+          <div className="alerta aviso">Para registrar, primero captura el QR del bin que va a llenar la cuadrilla.</div>
+          <CapturaQR etiqueta="Capturar bin" onScan={abrirBin} />
+          {msg && <div className={`resultado ${msg.t}`}><div className="nombre">{msg.titulo}</div>{msg.detalle && <div>{msg.detalle}</div>}</div>}
+        </div>
+      )}
+
       {/* La cámara se enciende solo al tocar Capturar y se apaga al leer */}
-      {(paso === 'credencial' || paso === 'caja') && (
+      {(!usaBins || bin) && (paso === 'credencial' || paso === 'caja') && (
         <CapturaQR key={paso + (actual?.codigo ?? '')}
           etiqueta={paso === 'caja' ? 'Capturar caja' : 'Capturar credencial'}
           onScan={onScan} />
@@ -202,7 +280,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
         {paso === 'caja' && actual && `Cajas de ${nombreTrabajador(actual.trabajador)} · una credencial distinta cambia de trabajador`}
       </p>
 
-      {msg && (
+      {msg && (!usaBins || bin) && (
         <div className={`resultado ${msg.t}`}>
           <div className="nombre">{msg.titulo}</div>
           {msg.detalle && <div>{msg.detalle}</div>}

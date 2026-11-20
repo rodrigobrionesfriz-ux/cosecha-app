@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { cargarEntregas, Fila } from '@/lib/reportes';
-import { useTabla } from '@/lib/datos';
+import { cargarTabla, useTabla } from '@/lib/datos';
 import { hoyISO, horaCorta, num } from '@/lib/util';
 import { BarrasH, Columnas, Punto, TablaPuntos, TarjetaGrafico } from '@/components/Graficos';
 
@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [huertoId, setHuertoId] = useState('');
   const [especieId, setEspecieId] = useState('');
   const [filas, setFilas] = useState<Fila[]>([]);
+  const [bins, setBins] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const huertos = useTabla<any>('huertos', 'id,nombre', 'nombre');
@@ -51,7 +52,17 @@ export default function Dashboard() {
   async function cargar() {
     setCargando(true);
     try {
-      setFilas(await cargarEntregas(vista === 'Diario' ? fecha : desde, fecha, huertoId || undefined));
+      const ini = vista === 'Diario' ? fecha : desde;
+      const [f, b] = await Promise.all([
+        cargarEntregas(ini, fecha, huertoId || undefined),
+        cargarTabla<any>('v_bins', 'id,estado,origen,cuadrilla,abierto_por_nombre,huerto_id,especie_id,kilos,minutos_a_acopio', (q) => {
+          let r = q.gte('fecha', ini).lte('fecha', fecha).neq('estado', 'anulado');
+          if (huertoId) r = r.eq('huerto_id', huertoId);
+          return r;
+        }).catch(() => []),
+      ]);
+      setFilas(f);
+      setBins(b);
       setError('');
     } catch (e: any) { setError(e.message); }
     setCargando(false);
@@ -93,6 +104,30 @@ export default function Dashboard() {
   }, [delFiltro]); // eslint-disable-line
 
   const rendimiento = r.jornadas ? r.kilos / r.jornadas : 0;
+
+  // Acopio: bins cosechados en campo vs recibidos (como "Acopio y llenado por cuadrilla" de HubCrop)
+  const binsF = bins.filter((b) => !especieId || b.especie_id === especieId || !b.especie_id);
+  const recibido = (b: any) => !['abierto', 'cerrado'].includes(b.estado);
+  const ac = {
+    cosechados: binsF.filter((b) => b.origen === 'campo').length,
+    armados: binsF.filter((b) => b.origen !== 'campo').length,
+    recibidos: binsF.filter(recibido).length,
+    pendientes: binsF.filter((b) => !recibido(b)).length,
+    camara: binsF.filter((b) => b.estado === 'en_camara').length,
+    despachados: binsF.filter((b) => b.estado === 'despachado').length,
+    minutos: (() => { const l = binsF.map((b) => b.minutos_a_acopio).filter((x) => x != null).map(Number); return l.length ? l.reduce((a, b) => a + b, 0) / l.length : null; })(),
+  };
+  const porCuadrillaBins = (() => {
+    const mm = new Map<string, { clave: string; etiqueta: string; total: number; recibidos: number; pendientes: number; kilos: number }>();
+    for (const b of binsF) {
+      const k = b.cuadrilla || b.abierto_por_nombre || (b.origen === 'campo' ? 'Sin cuadrilla' : 'Acopio');
+      const a = mm.get(k) || { clave: k, etiqueta: k, total: 0, recibidos: 0, pendientes: 0, kilos: 0 };
+      a.total++; if (recibido(b)) a.recibidos++; else a.pendientes++; a.kilos += Number(b.kilos || 0);
+      mm.set(k, a);
+    }
+    return [...mm.values()].sort((a, b) => b.total - a.total);
+  })();
+  const pBinsCuadrilla: Punto[] = porCuadrillaBins.map((a) => ({ clave: a.clave, etiqueta: a.etiqueta, valor: a.total, detalle: `${a.recibidos} recibidos · ${a.pendientes} sin recepción` }));
   const ultima = validas[validas.length - 1];
   const sinMaestros = !huertos.cargando && !huertos.filas.length;
   const diario = vista === 'Diario';
@@ -201,6 +236,32 @@ export default function Dashboard() {
           <BarrasH datos={pVariedad} unidad="kg" />
         </TarjetaGrafico>
       </div>
+
+      {binsF.length > 0 && (
+        <>
+          <h2>Acopio</h2>
+          <div className="kpis">
+            <div className="kpi"><div className="v">{ac.cosechados}</div><div className="l">Bins cosechados en campo</div></div>
+            <div className="kpi"><div className="v">{ac.recibidos}</div><div className="l">Recibidos en acopio{ac.armados ? ` (${ac.armados} armados allí)` : ''}</div></div>
+            <div className="kpi"><div className="v">{ac.pendientes}</div><div className="l">Sin recepción</div></div>
+            <div className="kpi"><div className="v">{ac.camara}</div><div className="l">En cámara</div></div>
+            <div className="kpi"><div className="v">{ac.despachados}</div><div className="l">Despachados</div></div>
+            <div className="kpi"><div className="v">{ac.minutos == null ? '—' : num(ac.minutos)}</div><div className="l">Min. promedio de campo a acopio</div></div>
+          </div>
+          <div className="graf-grilla">
+            <TarjetaGrafico titulo="Bins por cuadrilla" sub="Bins llenados; el detalle muestra recibidos y sin recepción"
+              tabla={(
+                <table>
+                  <thead><tr><th>Cuadrilla</th><th className="n">Bins</th><th className="n">Recibidos</th><th className="n">Sin recepción</th><th className="n">Kilos</th></tr></thead>
+                  <tbody>{porCuadrillaBins.map((a) => <tr key={a.clave}><td>{a.etiqueta}</td><td className="n">{a.total}</td><td className="n">{a.recibidos}</td><td className="n">{a.pendientes}</td><td className="n">{num(a.kilos)}</td></tr>)}</tbody>
+                </table>
+              )}>
+              <BarrasH datos={pBinsCuadrilla} unidad="bins" />
+            </TarjetaGrafico>
+          </div>
+          <p className="muted" style={{ marginTop: '-.4rem' }}>Detalle de cada bin en <a href="/admin/acopio/">Acopio y bins</a>.</p>
+        </>
+      )}
 
       <h2>Trabajadores</h2>
       <div className="tabla-wrap" style={{ maxHeight: 520, overflowY: 'auto' }}>

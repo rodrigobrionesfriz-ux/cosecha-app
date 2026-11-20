@@ -52,7 +52,7 @@ export default function Imprimir() {
       setItems(lista);
       const guardado = (() => { try { return localStorage.getItem('cosecha-formato-imp'); } catch { return null; } })();
       if (guardado && FORMATOS[guardado]) setFormatoState(guardado);
-      else if (lista[0]?.tipo === 'B') setFormatoState('etiqueta');
+      else if (lista[0]?.tipo === 'B' || lista[0]?.tipo === 'L') setFormatoState('etiqueta');
       setCargando(false);
     })();
   }, [perfil]);
@@ -137,7 +137,7 @@ export default function Imprimir() {
 
       <div className="no-print tarjeta" style={{ maxWidth: 820, margin: '0 auto', borderRadius: 0 }}>
         <div className="encabezado" style={{ marginBottom: '.5rem' }}>
-          <h1 style={{ margin: 0 }}>Imprimir {items.length} {items[0]?.tipo === 'B' ? 'etiquetas' : 'credenciales'}</h1>
+          <h1 style={{ margin: 0 }}>Imprimir {items.length} {items[0]?.tipo === 'B' ? 'etiquetas de caja' : items[0]?.tipo === 'L' ? 'etiquetas de bin' : 'credenciales'}</h1>
           <div className="acciones">
             <button onClick={descargarPDF} disabled={!items.length || !!exportando}>⬇ PDF 58×30</button>
             <button onClick={descargarExcel} disabled={!items.length || !!exportando}>⬇ Excel</button>

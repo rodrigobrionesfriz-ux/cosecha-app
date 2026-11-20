@@ -15,7 +15,8 @@ export default function Inicio() {
     if (cargando || !session || !perfil) return;
     const destino = new URLSearchParams(location.search).get('ir');
     // Los jefes de cuadrilla solo usan la app de terreno
-    if (perfil.rol === 'jefe' || destino === 'campo') location.replace('/campo/');
+    if (perfil.rol === 'acopio' || destino === 'acopio') location.replace('/acopio/');
+    else if (perfil.rol === 'jefe' || destino === 'campo') location.replace('/campo/');
     else location.replace('/admin/');
   }, [cargando, session, perfil]);
 

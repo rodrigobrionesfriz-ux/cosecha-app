@@ -8,6 +8,8 @@ import DiaTab from '@/components/campo/Dia';
 import Credencial from '@/components/campo/Credencial';
 import Resumen from '@/components/campo/Resumen';
 import Sync from '@/components/campo/Sync';
+import { eventosRechazados, TEXTO_EVENTO } from '@/lib/bins';
+import type { EventoLocal } from '@/lib/offline';
 
 type Tab = 'registro' | 'dia' | 'credencial' | 'resumen' | 'sync';
 
@@ -23,6 +25,7 @@ export default function Campo() {
   const [sincronizando, setSincronizando] = useState(false);
   const [ultimoSync, setUltimoSync] = useState<{ ok: boolean; msg: string; cuando: string } | null>(null);
   const [credPrefill, setCredPrefill] = useState('');
+  const [rechazos, setRechazos] = useState<EventoLocal[]>([]);
   const syncRef = useRef(false);
   const esAdminRef = useRef(false);
   esAdminRef.current = perfil?.rol === 'admin';
@@ -36,6 +39,7 @@ export default function Campo() {
     const p = await contarPendientes();
     setPendientes(p.mias);
     setDeOtros(p.otros);
+    setRechazos(await eventosRechazados());
   }, []);
 
   const sync = useCallback(async (silencioso = false) => {
@@ -46,7 +50,7 @@ export default function Campo() {
       const r = await sincronizar();
       await limpiarLocalesSiCorresponde();
       await limpiarAntiguas();
-      const msg = r.errores.length ? r.errores.join(' · ') : `Subidas ${r.entregas} entregas${r.asignaciones ? ` y ${r.asignaciones} credenciales` : ''}.${r.actualizadas && esAdminRef.current ? ` ${r.actualizadas} registro(s) corregido(s) por administración.` : ''} Datos actualizados.`;
+      const msg = r.errores.length ? r.errores.join(' · ') : `Subidas ${r.entregas} entregas${r.asignaciones ? `, ${r.asignaciones} credenciales` : ''}${r.eventos ? `, ${r.eventos} movimientos de bins` : ''}.${r.actualizadas && esAdminRef.current ? ` ${r.actualizadas} registro(s) corregido(s) por administración.` : ''} Datos actualizados.`;
       setUltimoSync({ ok: !r.errores.length, msg, cuando: new Date().toISOString() });
     } catch (e: any) {
       if (!silencioso) setUltimoSync({ ok: false, msg: e.message || 'Error de conexión', cuando: new Date().toISOString() });
@@ -98,6 +102,7 @@ export default function Campo() {
   function setDia(d: Dia) { setDiaState(d); guardarDia(d); }
 
   if (cargando || !perfil) return <div className="campo-app"><div className="campo-body muted">Cargando…</div></div>;
+  if (perfil.rol === 'acopio') { if (typeof window !== 'undefined') location.replace('/acopio/'); return null; }
   if (perfil.rol === 'consulta') {
     return <div className="login"><div className="alerta aviso">Tu usuario es de solo consulta y no puede registrar cosecha.</div><a className="btn grande" href="/admin/">Ir al panel</a></div>;
   }
@@ -139,6 +144,12 @@ export default function Campo() {
         )}
         {!m.ultima_descarga && (
           <div className="alerta aviso">Este teléfono aún no descarga los datos. Conéctate a internet y toca <b>Sincronizar</b>.</div>
+        )}
+        {rechazos.length > 0 && (tab === 'sync' || tab === 'registro') && (
+          <details className="alerta error">
+            <summary>{rechazos.length} movimiento(s) de bin rechazado(s) por el servidor</summary>
+            {rechazos.slice(0, 10).map((e) => <div key={e.id} style={{ marginTop: '.3rem' }}>{TEXTO_EVENTO[e.tipo]} {e.codigo.slice(-6)}: {e.mensaje || e.resultado}</div>)}
+          </details>
         )}
         {deOtros > 0 && tab === 'sync' && (
           <div className="alerta aviso">Este teléfono tiene {deOtros} registro(s) sin subir de <b>otro usuario</b>. Para subirlos, ese usuario debe entrar en este teléfono y sincronizar.</div>

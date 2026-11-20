@@ -45,9 +45,9 @@ export function rutDesdeQR(texto: string): string | null {
 
 // ---------- Códigos QR propios ----------
 // Formato: BC-<tipo>-<número>. Tipo W = credencial trabajador, B = caja
-export type TipoCodigo = 'W' | 'B';
+export type TipoCodigo = 'W' | 'B' | 'L';
 export function tipoCodigo(texto: string): TipoCodigo | null {
-  const m = (texto || '').trim().toUpperCase().match(/^BC-([WB])-[0-9A-Z]{4,32}$/);
+  const m = (texto || '').trim().toUpperCase().match(/^BC-([WBL])-[0-9A-Z]{4,32}$/);
   return m ? (m[1] as TipoCodigo) : null;
 }
 export function normalizarCodigo(texto: string): string {

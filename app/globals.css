@@ -296,3 +296,25 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
 .col-et { flex: 1 1 0; text-align: center; font-size: .72rem; color: var(--gris); padding-top: .25rem; white-space: nowrap; overflow: visible; }
 @media (max-width: 800px) { .graf-grilla { grid-template-columns: 1fr; } .dashboard .filtros > * { flex-basis: 45%; } }
 @media print { .graf-grilla { grid-template-columns: 1fr 1fr; } .graf { break-inside: avoid; } }
+
+/* ---------- Bins ---------- */
+.bin-barra { display: flex; align-items: center; justify-content: space-between; gap: .8rem; background: var(--verde-claro); border: 1px solid var(--borde); border-radius: var(--radio); padding: .6rem .8rem; margin-bottom: .7rem; }
+.bin-barra .bin-n { flex: 1; text-align: center; font-size: 1.3rem; }
+.bin-pista { height: 6px; background: var(--blanco); border-radius: 3px; margin-top: .25rem; overflow: hidden; }
+.bin-pista > div { height: 100%; background: var(--verde); }
+
+/* ---------- Acopio ---------- */
+.segmentado { display: flex; border: 1px solid var(--borde); border-radius: 8px; overflow: hidden; }
+.segmentado button { flex: 1; border: none; border-radius: 0; background: var(--blanco); padding: .6rem; }
+.segmentado button + button { border-left: 1px solid var(--borde); }
+.segmentado button.activo { background: var(--verde); color: #fff; font-weight: 600; }
+.ficha-bin .fila-sup { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-bottom: .3rem; }
+.form-calidad { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-top: .6rem; }
+.form-calidad .campo { margin: 0; }
+.enlace { border: none; background: none; padding: 0; color: var(--verde); font-weight: 600; }
+.fotos { display: flex; gap: .5rem; flex-wrap: wrap; }
+.foto { position: relative; width: 84px; height: 84px; border-radius: 8px; overflow: hidden; border: 1px solid var(--borde); background: var(--paja-3); }
+.foto img { width: 100%; height: 100%; object-fit: cover; }
+.foto button { position: absolute; top: 2px; right: 2px; padding: 0 .35rem; }
+.foto.agregar { display: grid; place-items: center; cursor: pointer; color: var(--gris); font-size: .85rem; }
+.alerta-fila { border-color: var(--cereza) !important; background: var(--cereza-claro) !important; }

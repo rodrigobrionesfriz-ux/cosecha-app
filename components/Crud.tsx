@@ -7,7 +7,7 @@ import { errorAmigable, useTabla } from '@/lib/datos';
 export type Campo = {
   k: string;
   t: string;
-  tipo?: 'text' | 'number' | 'bool' | 'select';
+  tipo?: 'text' | 'number' | 'bool' | 'select' | 'lista'; // lista = texto separado por comas ↔ arreglo
   opciones?: { v: string; t: string }[];
   req?: boolean;
   ancho?: number;
@@ -48,6 +48,7 @@ export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda, o
       let v = edit[c.k];
       if (c.tipo === 'number') v = v === '' || v === null || v === undefined ? null : Number(v);
       if (c.tipo === 'select' && v === '') v = null;
+      if (c.tipo === 'lista') v = (Array.isArray(v) ? v : String(v ?? '').split(',')).map((x: string) => x.trim()).filter(Boolean);
       if (c.tipo === 'text' || !c.tipo) v = typeof v === 'string' ? v.trim() || null : v;
       datos[c.k] = v;
     }
@@ -77,6 +78,7 @@ export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda, o
   const mostrar = (c: Campo, v: any) => {
     if (c.tipo === 'bool') return v ? '✔' : '—';
     if (c.tipo === 'select') return c.opciones?.find((o) => o.v === v)?.t ?? '—';
+    if (c.tipo === 'lista') return Array.isArray(v) && v.length ? v.join(', ') : '—';
     return v ?? '—';
   };
 
@@ -118,7 +120,7 @@ export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda, o
                       </select>
                     ) : (
                       <input type={c.tipo === 'number' ? 'number' : 'text'} step="any" required={c.req}
-                        value={edit[c.k] ?? ''} onChange={(e) => setEdit({ ...edit, [c.k]: e.target.value })} />
+                        value={Array.isArray(edit[c.k]) ? edit[c.k].join(', ') : edit[c.k] ?? ''} onChange={(e) => setEdit({ ...edit, [c.k]: e.target.value })} />
                     )}
                   </>
                 )}

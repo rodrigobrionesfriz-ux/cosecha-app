@@ -7,6 +7,8 @@ export type Maestros = {
   calidades: any[]; turnos: any[]; contratistas: any[]; cuadrillas: any[]; config_huerto: any[];
   trabajadores: any[]; credenciales: { codigo: string; trabajador_id: string }[];
   cajas_servidor: { codigo_caja: string; leido_en: string }[];
+  bins_activos: import('./bins').BinServidor[];
+  camaras: any[]; parametros_calidad: any[];
   ultima_descarga: string | null;
 };
 
@@ -20,12 +22,14 @@ export type Config = {
   horas_bloqueo_caja: number; segundos_entre_lecturas: number; max_cajas_por_lectura: number;
   exige_calidad: boolean; exige_turno: boolean; exige_contratista: boolean; con_gps: boolean; permite_rut_extranjero: boolean;
   envase_id: string | null; calidad_id: string | null; hora_inicio_tarde: string;
+  usa_bins: boolean; max_envases_bin: number; exige_calidad_recepcion: boolean;
 };
 
 export const CONFIG_DEF: Config = {
   modo_captura: 'credencial_cantidad', horas_bloqueo_caja: 12, segundos_entre_lecturas: 10, max_cajas_por_lectura: 10,
   exige_calidad: true, exige_turno: false, exige_contratista: false, con_gps: false, permite_rut_extranjero: true,
   envase_id: null, calidad_id: null, hora_inicio_tarde: '13:00',
+  usa_bins: false, max_envases_bin: 0, exige_calidad_recepcion: false,
 };
 
 const sinTilde = (t: string) => (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -41,7 +45,7 @@ export function jornadaActual(m: Maestros, cfg: Config, fecha = new Date()): { i
 }
 
 export async function leerMaestros(): Promise<Maestros> {
-  const k = ['huertos', 'cuarteles', 'variedades', 'especies', 'envases', 'calidades', 'turnos', 'contratistas', 'cuadrillas', 'config_huerto', 'trabajadores', 'credenciales', 'cajas_servidor', 'ultima_descarga'];
+  const k = ['huertos', 'cuarteles', 'variedades', 'especies', 'envases', 'calidades', 'turnos', 'contratistas', 'cuadrillas', 'config_huerto', 'trabajadores', 'credenciales', 'cajas_servidor', 'bins_activos', 'camaras', 'parametros_calidad', 'ultima_descarga'];
   const vals = await Promise.all(k.map((x) => getCache(x)));
   const m: any = {};
   k.forEach((x, i) => (m[x] = vals[i] ?? (x === 'ultima_descarga' ? null : [])));

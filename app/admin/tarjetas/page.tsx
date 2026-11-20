@@ -5,18 +5,18 @@ import { useAuth } from '@/lib/auth';
 import { useTabla, errorAmigable } from '@/lib/datos';
 import { fechaCL, normalizarCodigo, num } from '@/lib/util';
 
-const TIPOS: Record<string, string> = { W: 'Credencial trabajador', B: 'Etiqueta de caja' };
+const TIPOS: Record<string, string> = { W: 'Credencial trabajador', B: 'Etiqueta de caja', L: 'Etiqueta de bin' };
 
 export default function Tarjetas() {
   const { perfil } = useAuth();
   const lotes = useTabla<any>('lotes_impresion', '*', 'created_at');
-  const [tipo, setTipo] = useState<'W' | 'B'>('W');
+  const [tipo, setTipo] = useState<'W' | 'B' | 'L'>('W');
   const [cantidad, setCantidad] = useState(50);
   const [desc, setDesc] = useState('');
   const [msg, setMsg] = useState<{ t: string; m: string } | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [importar, setImportar] = useState('');
-  const [tipoImp, setTipoImp] = useState<'W' | 'B'>('W');
+  const [tipoImp, setTipoImp] = useState<'W' | 'B' | 'L'>('W');
   const [buscar, setBuscar] = useState('');
   const [hallada, setHallada] = useState<any | null | undefined>(undefined);
   const esAdmin = perfil?.rol === 'admin';
@@ -83,6 +83,7 @@ export default function Tarjetas() {
               <select value={tipo} onChange={(e) => setTipo(e.target.value as any)}>
                 <option value="W">Credenciales de trabajador (en blanco)</option>
                 <option value="B">Etiquetas de caja</option>
+                <option value="L">Etiquetas de bin (acopio)</option>
               </select>
             </div>
             <div className="fila">
@@ -106,6 +107,7 @@ export default function Tarjetas() {
               <select value={tipoImp} onChange={(e) => setTipoImp(e.target.value as any)}>
                 <option value="W">Credenciales</option>
                 <option value="B">Etiquetas de caja</option>
+                <option value="L">Etiquetas de bin</option>
               </select>
             </div>
             <textarea rows={4} value={importar} onChange={(e) => setImportar(e.target.value)} placeholder={'BC-W-000000000000000123\nBC-W-000000000000000124'} />
