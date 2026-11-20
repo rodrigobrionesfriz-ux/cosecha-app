@@ -11,6 +11,7 @@ const MENU = [
   { href: '/admin/maestros/', t: 'Huertos y maestros', i: '🌳' },
   { href: '/admin/config/', t: 'Reglas y tarifas', i: '⚙️' },
   { href: '/admin/usuarios/', t: 'Usuarios', i: '👤' },
+  { href: '/admin/borrado/', t: 'Borrado de datos', i: '🗑️' },
   { href: '/campo/', t: 'App de terreno', i: '📱' },
 ];
 

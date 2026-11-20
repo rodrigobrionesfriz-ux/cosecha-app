@@ -28,7 +28,7 @@ export type EntregaLocal = {
   jefe_user_id: string;
   // solo local
   trabajador_nombre?: string;
-  estado?: 'A' | 'D' | 'X';
+  estado?: 'A' | 'D' | 'X' | 'B';
   editada?: boolean;
   sync: 0 | 1;
   error?: string | null;

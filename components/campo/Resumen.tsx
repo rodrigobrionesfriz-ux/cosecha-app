@@ -14,7 +14,7 @@ export default function Resumen({ m, onCambio }: { m: Maestros; onCambio: () => 
   useEffect(() => { const t = setInterval(() => setAhora(Date.now()), 60000); return () => clearInterval(t); }, []);
 
   async function cargar() {
-    const l = (await db.entregas.where('fecha').equals(hoyISO()).toArray()).filter(propia);
+    const l = (await db.entregas.where('fecha').equals(hoyISO()).toArray()).filter((e) => propia(e) && e.estado !== 'B');
     l.sort((a, b) => b.leido_en.localeCompare(a.leido_en));
     setLista(l);
   }

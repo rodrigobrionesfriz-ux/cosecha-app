@@ -158,6 +158,10 @@ tfoot td { font-weight: 700; background: #f8faf8; }
 .modal { background: var(--blanco); border-radius: 12px; padding: 1.1rem; width: 100%; max-width: 560px; box-shadow: 0 10px 40px rgba(0,0,0,.3); }
 @media (max-width: 800px) { .modal-fondo { padding: .6rem; } .modal .fila > * { flex-basis: 100%; } }
 
+.btn-borrar { background: var(--cereza); border-color: var(--cereza); color: #fff; font-weight: 700; }
+.btn-borrar:hover { background: #8a1227; }
+.btn-borrar:disabled { background: #e8c5cc; border-color: #e8c5cc; }
+
 /* ---------- Login ---------- */
 .login { max-width: 380px; margin: 8vh auto; padding: 1rem; }
 .login .logo { font-size: 2.4rem; text-align: center; }
