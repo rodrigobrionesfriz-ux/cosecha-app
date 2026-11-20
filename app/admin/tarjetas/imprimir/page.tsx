@@ -11,6 +11,7 @@ type Item = { codigo: string; tipo: string; nombre?: string; rut?: string; qr?: 
 const FORMATOS: Record<string, { t: string; w: number; h: number; page: string; cols: number; rows: number; margen: number }> = {
   credencial: { t: 'Credencial 85×54 mm (10 por hoja A4)', w: 85.6, h: 54, page: 'A4', cols: 2, rows: 5, margen: 10 },
   etiqueta: { t: 'Etiqueta 50×30 mm (24 por hoja A4)', w: 50, h: 30, page: 'A4', cols: 4, rows: 8, margen: 6 },
+  termica5830qr: { t: 'Térmica 58×30 mm · solo QR + código (para PVC)', w: 58, h: 30, page: '58mm 30mm', cols: 1, rows: 1, margen: 0 },
   termica5030: { t: 'Impresora térmica rollo 50×30 mm', w: 50, h: 30, page: '50mm 30mm', cols: 1, rows: 1, margen: 0 },
   termica4030: { t: 'Impresora térmica rollo 40×30 mm', w: 40, h: 30, page: '40mm 30mm', cols: 1, rows: 1, margen: 0 },
 };
@@ -18,7 +19,8 @@ const FORMATOS: Record<string, { t: string; w: number; h: number; page: string; 
 export default function Imprimir() {
   const { perfil } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
-  const [formato, setFormato] = useState('credencial');
+  const [formato, setFormatoState] = useState('credencial');
+  const setFormato = (v: string) => { setFormatoState(v); try { localStorage.setItem('cosecha-formato-imp', v); } catch {} };
   const [cargando, setCargando] = useState(true);
   const [conNombre, setConNombre] = useState(true);
 
@@ -44,11 +46,13 @@ export default function Imprimir() {
           tipo: f.tipo,
           nombre: f.trabajador ? `${f.trabajador.nombres} ${f.trabajador.apellido_paterno || ''} ${f.trabajador.apellido_materno || ''}`.trim() : undefined,
           rut: f.trabajador?.rut,
-          qr: await QRCode.toDataURL(f.codigo, { errorCorrectionLevel: 'M', margin: 0, width: 300 }),
+          qr: await QRCode.toDataURL(f.codigo, { errorCorrectionLevel: 'M', margin: 0, width: 400 }),
         }))
       );
       setItems(lista);
-      if (lista[0]?.tipo === 'B') setFormato('etiqueta');
+      const guardado = (() => { try { return localStorage.getItem('cosecha-formato-imp'); } catch { return null; } })();
+      if (guardado && FORMATOS[guardado]) setFormatoState(guardado);
+      else if (lista[0]?.tipo === 'B') setFormatoState('etiqueta');
       setCargando(false);
     })();
   }, [perfil]);
@@ -81,6 +85,9 @@ export default function Imprimir() {
         .cred .rut { font-size:9pt; margin-top:1mm; }
         .cred .linea { border-bottom:0.3mm solid #999; height:6mm; margin-bottom:1.5mm; }
         .cred .cod { font-family: ui-monospace, monospace; font-size:7pt; color:#333; margin-top:2mm; word-break:break-all; }
+        .soloqr { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:1mm 0 0.8mm; font-family: ui-monospace, Menlo, Consolas, monospace; }
+        .soloqr img { height:${f.h - 7.5}mm; width:${f.h - 7.5}mm; image-rendering: pixelated; }
+        .soloqr .cod { font-size:8pt; font-weight:700; letter-spacing:0.2pt; margin-top:0.8mm; color:#000; white-space:nowrap; }
         .eti { display:flex; align-items:center; gap:2mm; padding:1.5mm 2mm; font-family:system-ui,sans-serif; }
         .eti img { height:${f.h - 4}mm; width:${f.h - 4}mm; }
         .eti .cod { font-family: ui-monospace, monospace; font-size:7pt; word-break:break-all; }
@@ -112,7 +119,7 @@ export default function Imprimir() {
         </div>
         <p className="muted" style={{ margin: 0 }}>
           En el diálogo de impresión usa escala 100% y sin márgenes del navegador. Para credenciales, imprime en cartulina y plastifica.
-          {esTermica && ' En impresora térmica, elige el tamaño de papel de la etiqueta.'}
+          {esTermica && ' En impresora térmica: en el diálogo de impresión elige el tamaño de papel igual a la etiqueta (por ejemplo 58×30 mm), márgenes "Ninguno" y escala 100%.'}
         </p>
       </div>
 
@@ -121,7 +128,12 @@ export default function Imprimir() {
       {hojas.map((h, i) => (
         <div className="hoja" key={i}>
           {h.map((it) =>
-            formato === 'credencial' ? (
+            formato === 'termica5830qr' ? (
+              <div className="item soloqr" key={it.codigo}>
+                <img src={it.qr} alt={it.codigo} />
+                <div className="cod">{it.codigo}</div>
+              </div>
+            ) : formato === 'credencial' ? (
               <div className="item cred" key={it.codigo}>
                 <div className="banda"><span>{empresa.toUpperCase()}</span><span>CREDENCIAL COSECHA</span></div>
                 <div className="cuerpo">
