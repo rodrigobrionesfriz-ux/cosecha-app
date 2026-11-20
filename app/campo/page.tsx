@@ -24,6 +24,8 @@ export default function Campo() {
   const [ultimoSync, setUltimoSync] = useState<{ ok: boolean; msg: string; cuando: string } | null>(null);
   const [credPrefill, setCredPrefill] = useState('');
   const syncRef = useRef(false);
+  const esAdminRef = useRef(false);
+  esAdminRef.current = perfil?.rol === 'admin';
 
   useEffect(() => {
     if (!cargando && (!session || !perfil)) location.replace('/?ir=campo');
@@ -44,7 +46,7 @@ export default function Campo() {
       const r = await sincronizar();
       await limpiarLocalesSiCorresponde();
       await limpiarAntiguas();
-      const msg = r.errores.length ? r.errores.join(' · ') : `Subidas ${r.entregas} entregas${r.asignaciones ? ` y ${r.asignaciones} credenciales` : ''}.${r.actualizadas ? ` ${r.actualizadas} registro(s) corregido(s) por administración.` : ''} Datos actualizados.`;
+      const msg = r.errores.length ? r.errores.join(' · ') : `Subidas ${r.entregas} entregas${r.asignaciones ? ` y ${r.asignaciones} credenciales` : ''}.${r.actualizadas && esAdminRef.current ? ` ${r.actualizadas} registro(s) corregido(s) por administración.` : ''} Datos actualizados.`;
       setUltimoSync({ ok: !r.errores.length, msg, cuando: new Date().toISOString() });
     } catch (e: any) {
       if (!silencioso) setUltimoSync({ ok: false, msg: e.message || 'Error de conexión', cuando: new Date().toISOString() });
