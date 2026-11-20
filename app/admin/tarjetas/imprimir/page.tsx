@@ -5,22 +5,29 @@ import { cargarTabla } from '@/lib/datos';
 import { useAuth } from '@/lib/auth';
 import { formatearRut } from '@/lib/util';
 
-type Item = { codigo: string; tipo: string; nombre?: string; rut?: string; qr?: string };
+type Item = { codigo: string; tipo: string; numero?: number; nombre?: string; rut?: string; qr?: string };
 
 // Formatos de impresión
-const FORMATOS: Record<string, { t: string; w: number; h: number; page: string; cols: number; rows: number; margen: number }> = {
-  credencial: { t: 'Credencial 85×54 mm (10 por hoja A4)', w: 85.6, h: 54, page: 'A4', cols: 2, rows: 5, margen: 10 },
-  etiqueta: { t: 'Etiqueta 50×30 mm (24 por hoja A4)', w: 50, h: 30, page: 'A4', cols: 4, rows: 8, margen: 6 },
-  termica5830qr: { t: 'Térmica 58×30 mm · solo QR + código (para PVC)', w: 58, h: 30, page: '58mm 30mm', cols: 1, rows: 1, margen: 0 },
-  termica5030: { t: 'Impresora térmica rollo 50×30 mm', w: 50, h: 30, page: '50mm 30mm', cols: 1, rows: 1, margen: 0 },
-  termica4030: { t: 'Impresora térmica rollo 40×30 mm', w: 40, h: 30, page: '40mm 30mm', cols: 1, rows: 1, margen: 0 },
+const FORMATOS: Record<string, { t: string; w: number; h: number; page: string; cols: number; rows: number; margen: number; tipos: string }> = {
+  credencial: { t: 'Credencial 85×54 mm (10 por hoja A4)', w: 85.6, h: 54, page: 'A4', cols: 2, rows: 5, margen: 10, tipos: 'W' },
+  tarjabin: { t: 'Tarja de bin 95×65 mm (8 por hoja A4)', w: 95, h: 65, page: 'A4', cols: 2, rows: 4, margen: 10, tipos: 'L' },
+  tarjabingrande: { t: 'Tarja de bin grande 190×130 mm (2 por hoja A4)', w: 190, h: 130, page: 'A4', cols: 1, rows: 2, margen: 10, tipos: 'L' },
+  termica5840bin: { t: 'Térmica 58×40 mm · tarja de bin', w: 58, h: 40, page: '58mm 40mm', cols: 1, rows: 1, margen: 0, tipos: 'L' },
+  etiqueta: { t: 'Etiqueta 50×30 mm (24 por hoja A4)', w: 50, h: 30, page: 'A4', cols: 4, rows: 8, margen: 6, tipos: 'WB' },
+  termica5830qr: { t: 'Térmica 58×30 mm · solo QR + código (para PVC)', w: 58, h: 30, page: '58mm 30mm', cols: 1, rows: 1, margen: 0, tipos: 'WB' },
+  termica5030: { t: 'Impresora térmica rollo 50×30 mm', w: 50, h: 30, page: '50mm 30mm', cols: 1, rows: 1, margen: 0, tipos: 'WB' },
+  termica4030: { t: 'Impresora térmica rollo 40×30 mm', w: 40, h: 30, page: '40mm 30mm', cols: 1, rows: 1, margen: 0, tipos: 'WB' },
 };
+const DEFECTO: Record<string, string> = { W: 'credencial', B: 'etiqueta', L: 'tarjabin' };
+const claveFormato = (tipo?: string) => 'cosecha-formato-imp-' + (tipo || 'W');
+/** Número corto del bin para leer a distancia: correlativo o últimos dígitos del código */
+const numeroBin = (it: Item) => String(it.numero ?? Number(it.codigo.replace(/\D/g, '').slice(-6)));
 
 export default function Imprimir() {
   const { perfil } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
   const [formato, setFormatoState] = useState('credencial');
-  const setFormato = (v: string) => { setFormatoState(v); try { localStorage.setItem('cosecha-formato-imp', v); } catch {} };
+  const setFormato = (v: string) => { setFormatoState(v); try { localStorage.setItem(claveFormato(items[0]?.tipo), v); } catch {} };
   const [cargando, setCargando] = useState(true);
   const [conNombre, setConNombre] = useState(true);
 
@@ -44,15 +51,16 @@ export default function Imprimir() {
         filas.map(async (f) => ({
           codigo: f.codigo,
           tipo: f.tipo,
+          numero: f.correlativo ?? undefined,
           nombre: f.trabajador ? `${f.trabajador.nombres} ${f.trabajador.apellido_paterno || ''} ${f.trabajador.apellido_materno || ''}`.trim() : undefined,
           rut: f.trabajador?.rut,
           qr: await QRCode.toDataURL(f.codigo, { errorCorrectionLevel: 'M', margin: 0, width: 400 }),
         }))
       );
       setItems(lista);
-      const guardado = (() => { try { return localStorage.getItem('cosecha-formato-imp'); } catch { return null; } })();
-      if (guardado && FORMATOS[guardado]) setFormatoState(guardado);
-      else if (lista[0]?.tipo === 'B' || lista[0]?.tipo === 'L') setFormatoState('etiqueta');
+      const tipo = lista[0]?.tipo || 'W';
+      const guardado = (() => { try { return localStorage.getItem(claveFormato(tipo)); } catch { return null; } })();
+      setFormatoState(guardado && FORMATOS[guardado]?.tipos.includes(tipo) ? guardado : DEFECTO[tipo] || 'etiqueta');
       setCargando(false);
     })();
   }, [perfil]);
@@ -64,6 +72,23 @@ export default function Imprimir() {
     setExportando('Generando PDF…');
     try {
       const { jsPDF } = await import('jspdf');
+      if (esBin) {
+        const W = 58, H = 40, Q = 27;
+        const doc = new jsPDF({ unit: 'mm', format: [W, H], orientation: 'landscape' });
+        items.forEach((it, i) => {
+          if (i > 0) doc.addPage([W, H], 'landscape');
+          doc.addImage(it.qr!, 'PNG', 2, (H - Q) / 2 - 2, Q, Q);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8); doc.text('BIN', 31, 9);
+          doc.setFontSize(numeroBin(it).length > 4 ? 18 : 24); doc.text(numeroBin(it), 31, 19);
+          doc.setFontSize(6); doc.setFont('helvetica', 'normal'); doc.text(empresa, 31, 25, { maxWidth: 25 });
+          doc.setFont('courier', 'bold'); doc.setFontSize(7.5);
+          doc.text(it.codigo, W / 2, H - 2.2, { align: 'center' });
+        });
+        doc.save(`tarjas_bin_58x40_${items.length}.pdf`);
+        setExportando('');
+        return;
+      }
       const W = 58, H = 30, Q = 22.5;
       const doc = new jsPDF({ unit: 'mm', format: [W, H], orientation: 'landscape' });
       items.forEach((it, i) => {
@@ -103,6 +128,8 @@ export default function Imprimir() {
 
   const empresa = perfil?.empresa?.nombre?.replace('Sociedad Agrícola y Forestal ', '').replace(' Ltda.', '') || '';
   const esTermica = formato.startsWith('termica');
+  const esBin = items[0]?.tipo === 'L';
+  const tipoActual = items[0]?.tipo || 'W';
 
   return (
     <div style={{ background: '#e9ece9', minHeight: '100vh' }}>
@@ -128,6 +155,22 @@ export default function Imprimir() {
         .eti img { height:${f.h - 4}mm; width:${f.h - 4}mm; }
         .eti .cod { font-family: ui-monospace, monospace; font-size:7pt; word-break:break-all; }
         .eti .emp { font-size:6.5pt; color:#555; margin-top:1mm; }
+        .tarja { display:flex; flex-direction:column; font-family: system-ui, sans-serif; border: 0.6mm solid #1f4a27; box-sizing:border-box; }
+        .tarja .banda { background:#1f4a27; color:#fff; font-weight:800; padding:${f.h > 100 ? 3 : 1.6}mm 3mm; display:flex; justify-content:space-between; align-items:center; font-size:${f.h > 100 ? 14 : 8}pt; }
+        .tarja .cuerpo { flex:1; display:flex; gap:3mm; padding:2.5mm 3mm; min-height:0; }
+        .tarja img { height:100%; aspect-ratio:1; max-width:48%; image-rendering: pixelated; }
+        .tarja .der { flex:1; display:flex; flex-direction:column; min-width:0; }
+        .tarja .lbl { font-size:${f.h > 100 ? 12 : 7}pt; color:#555; text-transform:uppercase; letter-spacing:.5pt; }
+        .tarja .num { font-size:${f.h > 100 ? 72 : 30}pt; font-weight:900; line-height:1; color:#000; }
+        .tarja .linea { display:flex; gap:2mm; align-items:flex-end; font-size:${f.h > 100 ? 12 : 7}pt; color:#555; margin-top:${f.h > 100 ? 5 : 1.6}mm; }
+        .tarja .linea span:last-child { flex:1; border-bottom:0.3mm solid #999; height:${f.h > 100 ? 7 : 3.5}mm; }
+        .tarja .pie { font-family: ui-monospace, monospace; font-size:${f.h > 100 ? 11 : 7}pt; text-align:center; padding:0 0 1.2mm; font-weight:700; }
+        .tarjat { display:flex; align-items:center; gap:2mm; height:100%; padding:1.5mm; font-family: system-ui, sans-serif; position:relative; }
+        .tarjat img { height:27mm; width:27mm; image-rendering: pixelated; }
+        .tarjat .lbl { font-size:8pt; font-weight:700; }
+        .tarjat .num { font-size:24pt; font-weight:900; line-height:1; }
+        .tarjat .emp { font-size:6pt; color:#333; margin-top:1mm; }
+        .tarjat .cod { position:absolute; bottom:0.8mm; left:0; right:0; text-align:center; font-family: ui-monospace, monospace; font-size:7pt; font-weight:700; }
         @media print {
           body, html { background:#fff !important; }
           .hoja { margin:0; padding:0; box-shadow:none; page-break-after: always; break-after: page; width:auto; }
@@ -139,7 +182,7 @@ export default function Imprimir() {
         <div className="encabezado" style={{ marginBottom: '.5rem' }}>
           <h1 style={{ margin: 0 }}>Imprimir {items.length} {items[0]?.tipo === 'B' ? 'etiquetas de caja' : items[0]?.tipo === 'L' ? 'etiquetas de bin' : 'credenciales'}</h1>
           <div className="acciones">
-            <button onClick={descargarPDF} disabled={!items.length || !!exportando}>⬇ PDF 58×30</button>
+            <button onClick={descargarPDF} disabled={!items.length || !!exportando}>⬇ PDF {esBin ? '58×40' : '58×30'}</button>
             <button onClick={descargarExcel} disabled={!items.length || !!exportando}>⬇ Excel</button>
             <button className="primario" onClick={() => window.print()} disabled={!items.length}>🖨 Imprimir</button>
           </div>
@@ -148,7 +191,7 @@ export default function Imprimir() {
           <div className="campo">
             <label>Formato</label>
             <select value={formato} onChange={(e) => setFormato(e.target.value)}>
-              {Object.entries(FORMATOS).map(([k, v]) => <option key={k} value={k}>{v.t}</option>)}
+              {Object.entries(FORMATOS).filter(([, v]) => v.tipos.includes(tipoActual)).map(([k, v]) => <option key={k} value={k}>{v.t}</option>)}
             </select>
           </div>
           {items[0]?.tipo === 'W' && formato === 'credencial' && (
@@ -178,7 +221,32 @@ export default function Imprimir() {
       {hojas.map((h, i) => (
         <div className="hoja" key={i}>
           {h.map((it) =>
-            formato === 'termica5830qr' ? (
+            formato === 'tarjabin' || formato === 'tarjabingrande' ? (
+              <div className="item tarja" key={it.codigo}>
+                <div className="banda"><span>TARJA BIN</span><span>{empresa.toUpperCase()}</span></div>
+                <div className="cuerpo">
+                  <img src={it.qr} alt={it.codigo} />
+                  <div className="der">
+                    <div className="lbl">N° bin</div>
+                    <div className="num">{numeroBin(it)}</div>
+                    <div className="linea"><span>Fecha</span><span /></div>
+                    <div className="linea"><span>Cuartel</span><span /></div>
+                    <div className="linea"><span>Totes</span><span /></div>
+                  </div>
+                </div>
+                <div className="pie">{it.codigo}</div>
+              </div>
+            ) : formato === 'termica5840bin' ? (
+              <div className="item tarjat" key={it.codigo}>
+                <img src={it.qr} alt={it.codigo} />
+                <div>
+                  <div className="lbl">BIN</div>
+                  <div className="num">{numeroBin(it)}</div>
+                  <div className="emp">{empresa}</div>
+                </div>
+                <div className="cod">{it.codigo}</div>
+              </div>
+            ) : formato === 'termica5830qr' ? (
               <div className="item soloqr" key={it.codigo}>
                 <img src={it.qr} alt={it.codigo} />
                 <div className="cod">{it.codigo}</div>
