@@ -18,6 +18,12 @@ function horaCL(iso: string) {
   return Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: 'America/Santiago' }).format(new Date(iso)));
 }
 
+function restarDias(iso: string, n: number) {
+  const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+const etDia = (f: string) => f.slice(8, 10) + '/' + f.slice(5, 7);
+
 type Acum = { clave: string; etiqueta: string; envases: number; kilos: number; trab: Set<string>; monto: number };
 function acumular(filas: Fila[], clave: (f: Fila) => string, etiqueta: (f: Fila) => string) {
   const m = new Map<string, Acum>();
@@ -60,7 +66,7 @@ export default function Dashboard() {
   async function cargar() {
     setCargando(true);
     try {
-      const ini = vista === 'Diario' ? fecha : desde;
+      const ini = vista === 'Diario' ? restarDias(fecha, 6) : desde; // en diario: 7 días para tendencias
       const [f, b] = await Promise.all([
         cargarEntregas(ini, fecha, huertoId || undefined),
         cargarTabla<any>('v_bins', 'id,estado,origen,cuadrilla,abierto_por_nombre,huerto_id,especie_id,variedad_id,kilos,minutos_a_acopio', (q) => {
@@ -82,7 +88,9 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, [vista, fecha, desde, huertoId]); // eslint-disable-line
 
-  const delFiltro = filas.filter((f) => (!especieId || f.especie_id === especieId) && (!variedadId || f.variedad_id === variedadId));
+  const delRango = filas.filter((f) => (!especieId || f.especie_id === especieId) && (!variedadId || f.variedad_id === variedadId));
+  const delFiltro = vista === 'Diario' ? delRango.filter((f) => f.fecha === fecha) : delRango;
+  const validasRango = delRango.filter((f) => f.estado === 'A');
   const validas = delFiltro.filter((f) => f.estado === 'A');
   const dupl = delFiltro.filter((f) => f.estado === 'D');
 
@@ -120,7 +128,24 @@ export default function Dashboard() {
     const porDia = acumular(validas, (f) => f.fecha, (f) => f.fecha.slice(8, 10) + '/' + f.fecha.slice(5, 7))
       .sort((a, b) => a.clave.localeCompare(b.clave));
 
-    return { envases, kilos, pago, pagoTrab, recargo, contratistas, trabajadores, jornadas, dias, porCuadrilla, porCuartel, porVariedad, porTrab, horas, porDia };
+    // Top 10 por trabajador: kilos por hora (primera a última lectura de cada día, mínimo 1 h) y kilos por día trabajado
+    const tw = new Map<string, { nombre: string; kilos: number; dias: Map<string, { ini: number; fin: number }> }>();
+    for (const f of validas) {
+      const t = tw.get(f.trabajador_id) || { nombre: f.trabajador, kilos: 0, dias: new Map() };
+      t.kilos += Number(f.kilos_estimados);
+      const ms = new Date(f.leido_en).getTime();
+      const d = t.dias.get(f.fecha) || { ini: ms, fin: ms };
+      d.ini = Math.min(d.ini, ms); d.fin = Math.max(d.fin, ms);
+      t.dias.set(f.fecha, d); tw.set(f.trabajador_id, t);
+    }
+    const tws = [...tw.entries()].map(([id, t]) => {
+      const horas = [...t.dias.values()].reduce((a, d) => a + Math.max(1, (d.fin - d.ini) / 3600000), 0);
+      return { id, nombre: t.nombre, kilos: t.kilos, horas, dias: t.dias.size };
+    });
+    const topHora = [...tws].sort((a, b) => b.kilos / b.horas - a.kilos / a.horas).slice(0, 10);
+    const topDia = [...tws].sort((a, b) => b.kilos / b.dias - a.kilos / a.dias).slice(0, 10);
+
+    return { topHora, topDia, envases, kilos, pago, pagoTrab, recargo, contratistas, trabajadores, jornadas, dias, porCuadrilla, porCuartel, porVariedad, porTrab, horas, porDia };
   }, [delFiltro]); // eslint-disable-line
 
   const rendimiento = r.jornadas ? r.kilos / r.jornadas : 0;
@@ -163,6 +188,22 @@ export default function Dashboard() {
   const pHoraKg = aPuntos(r.horas, (a) => `${num(a.envases)} envases`);
   const pHoraTrab: Punto[] = r.horas.map((a) => ({ clave: a.clave, etiqueta: a.etiqueta, valor: a.trab.size, detalle: `${num(a.kilos)} kg` }));
   const pDia = aPuntos(r.porDia, detEnv);
+
+  // Tendencias: en diario, los 7 días hasta la fecha; en temporada, todo el rango
+  const porDiaRango = acumular(validasRango, (f) => f.fecha, (f) => etDia(f.fecha)).sort((a, b) => a.clave.localeCompare(b.clave));
+  const pRend: Punto[] = porDiaRango.map((a) => ({ clave: a.clave, etiqueta: a.etiqueta, valor: Math.round(a.trab.size ? a.kilos / a.trab.size : 0), detalle: `${num(a.kilos)} kg · ${a.trab.size} trab.` }));
+  const pTopHora: Punto[] = r.topHora.map((t) => ({ clave: t.id, etiqueta: t.nombre, valor: Math.round(t.kilos / t.horas), detalle: `${num(t.kilos)} kg en ${num(t.horas, 1)} h` }));
+  const pTopDia: Punto[] = r.topDia.map((t) => ({ clave: t.id, etiqueta: t.nombre, valor: Math.round(t.kilos / t.dias), detalle: `${num(t.kilos)} kg en ${t.dias} día(s)` }));
+  // Trabajadores cosechando por día, separados por contratista (Propio = sin contratista)
+  const contrCols = [...new Set(validasRango.map((f) => f.contratista || 'Propio'))].sort((a, b) => (a === 'Propio' ? -1 : b === 'Propio' ? 1 : a.localeCompare(b)));
+  const trabDia = porDiaRango.map((a) => {
+    const filasDia = validasRango.filter((f) => f.fecha === a.clave);
+    const por: Record<string, number> = {};
+    for (const c of contrCols) por[c] = new Set(filasDia.filter((f) => (f.contratista || 'Propio') === c).map((f) => f.trabajador_id)).size;
+    return { clave: a.clave, etiqueta: a.etiqueta, total: a.trab.size, por };
+  });
+  const pTrabDia: Punto[] = trabDia.map((d) => ({ clave: d.clave, etiqueta: d.etiqueta, valor: d.total, detalle: contrCols.filter((c) => d.por[c]).map((c) => `${c} ${d.por[c]}`).join(' · ') }));
+  const rangoTxt = vista === 'Diario' ? 'Últimos 7 días hasta la fecha' : 'Temporada';
 
   return (
     <div className="dashboard">
@@ -275,6 +316,36 @@ export default function Dashboard() {
 
         <TarjetaGrafico titulo="Kilos por variedad" sub={diario ? 'Cosechado en el día' : 'Acumulado de la temporada'} tabla={<TablaPuntos datos={pVariedad} cab="Variedad" unidad="Kilos" />}>
           <BarrasH datos={pVariedad} unidad="kg" />
+        </TarjetaGrafico>
+
+        <TarjetaGrafico titulo="Rendimiento diario por trabajador" sub={`Kg promedio por trabajador cada día · ${rangoTxt}`} tabla={<TablaPuntos datos={pRend} cab="Día" unidad="Kg/trabajador" />}>
+          <Columnas datos={pRend} unidad="kg/trab." />
+        </TarjetaGrafico>
+
+        <TarjetaGrafico titulo="Trabajadores cosechando por día" sub={`Separados por contratista · ${rangoTxt}`}
+          tabla={(
+            <table>
+              <thead><tr><th>Día</th>{contrCols.map((c) => <th key={c} className="n">{c}</th>)}<th className="n">Total</th></tr></thead>
+              <tbody>
+                {!trabDia.length && <tr><td colSpan={contrCols.length + 2} className="muted">Sin datos.</td></tr>}
+                {trabDia.map((d) => <tr key={d.clave}><td>{d.etiqueta}</td>{contrCols.map((c) => <td key={c} className="n">{d.por[c] || ''}</td>)}<td className="n"><b>{d.total}</b></td></tr>)}
+              </tbody>
+            </table>
+          )}>
+          <Columnas datos={pTrabDia} unidad="trab." />
+          {contrCols.length > 0 && trabDia.length > 0 && (
+            <div className="muted" style={{ fontSize: '.85rem', marginTop: '.4rem' }}>
+              {diario ? 'Hoy' : 'Último día'}: {contrCols.map((c) => `${c} ${trabDia[trabDia.length - 1].por[c] || 0}`).join(' · ')}
+            </div>
+          )}
+        </TarjetaGrafico>
+
+        <TarjetaGrafico titulo="Top 10 kilos por hora" sub="Kilos ÷ horas entre la primera y la última entrega del día (mínimo 1 h)" tabla={<TablaPuntos datos={pTopHora} cab="Trabajador" unidad="Kg/hora" />}>
+          <BarrasH datos={pTopHora} unidad="kg/h" />
+        </TarjetaGrafico>
+
+        <TarjetaGrafico titulo="Top 10 kilos por día" sub={diario ? 'Kilos del trabajador en el día' : 'Kilos ÷ días trabajados en la temporada'} tabla={<TablaPuntos datos={pTopDia} cab="Trabajador" unidad="Kg/día" />}>
+          <BarrasH datos={pTopDia} unidad="kg/día" />
         </TarjetaGrafico>
       </div>
 
