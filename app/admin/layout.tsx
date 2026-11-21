@@ -12,6 +12,7 @@ const MENU = [
   { href: '/admin/maestros/', t: 'Huertos y maestros', i: '🌳' },
   { href: '/admin/config/', t: 'Reglas y tarifas', i: '⚙️' },
   { href: '/admin/usuarios/', t: 'Usuarios', i: '👤' },
+  { href: '/admin/equipos/', t: 'Equipos', i: '📱' },
   { href: '/admin/borrado/', t: 'Borrado de datos', i: '🗑️' },
   { href: '/campo/', t: 'App de terreno', i: '📱' },
   { href: '/acopio/', t: 'App de acopio', i: '🏭' },

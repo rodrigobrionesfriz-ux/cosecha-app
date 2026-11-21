@@ -27,6 +27,7 @@ export type EntregaLocal = {
   dispositivo: string;
   jefe_user_id: string;
   bin_id?: string | null;
+  operador_id?: string | null;
   // solo local
   trabajador_nombre?: string;
   estado?: 'A' | 'D' | 'X' | 'B';
@@ -147,7 +148,7 @@ export function idDispositivo(): string {
 }
 
 // ---------- Descarga de maestros ----------
-const MAESTROS = ['huertos', 'cuarteles', 'variedades', 'especies', 'envases', 'calidades', 'turnos', 'contratistas', 'cuadrillas', 'config_huerto', 'camaras', 'parametros_calidad'];
+const MAESTROS = ['huertos', 'cuarteles', 'variedades', 'especies', 'envases', 'calidades', 'turnos', 'contratistas', 'cuadrillas', 'config_huerto', 'camaras', 'parametros_calidad', 'operadores'];
 
 export async function descargarMaestros(): Promise<void> {
   for (const t of MAESTROS) {
@@ -322,6 +323,7 @@ export type ResumenDescarga = { huertos: number; cuarteles: number; contratistas
  * (huertos, cuarteles en cosecha, contratistas, trabajadores, credenciales, bins), 3) trae correcciones de la nube.
  */
 export async function sincronizar(onPaso?: (texto: string) => void) {
+  supabase.rpc('equipo_conectado').then(() => {}, () => {}); // el panel ve cuándo se conectó el equipo
   onPaso?.('1 de 3 · Subiendo registros de cosecha…');
   const r = await subirPendientes();
   onPaso?.('2 de 3 · Descargando trabajadores, contratistas, huertos y cuarteles…');

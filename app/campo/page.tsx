@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { db, contarPendientes, datosDeHoy, limpiarAntiguas, prepararUsuario, sincronizar } from '@/lib/offline';
 import InicioDia from '@/components/campo/InicioDia';
+import SeleccionOperador from '@/components/SeleccionOperador';
+import { fijarOperador, Operador, operadorActual } from '@/lib/equipo';
 import { hoyISO } from '@/lib/util';
 import { leerMaestros, leerDia, guardarDia, Maestros, Dia, configDe, limpiarLocalesSiCorresponde } from '@/lib/campo';
 import Registro from '@/components/campo/Registro';
@@ -31,6 +33,7 @@ export default function Campo() {
   const [pasoSync, setPasoSync] = useState('');
   const [errorInicio, setErrorInicio] = useState('');
   const [continuarSinDatos, setContinuarSinDatos] = useState(false);
+  const [op, setOp] = useState<Operador | null>(null);
   const syncRef = useRef(false);
   const esAdminRef = useRef(false);
   esAdminRef.current = perfil?.rol === 'admin';
@@ -80,7 +83,8 @@ export default function Campo() {
     if (!perfil) return;
     (async () => {
       await prepararUsuario(perfil.user_id);
-      setDiaState(leerDia()); // la configuración del día es de cada usuario
+      setOp(operadorActual());
+      setDiaState(leerDia()); // la configuración del día es de cada usuario (y de cada jefe en un equipo)
       try { setContinuarSinDatos(localStorage.getItem('cosecha-continuar-' + perfil.user_id) === hoyISO()); } catch {}
       setListo(true);
       await recargarLocal();
@@ -117,6 +121,8 @@ export default function Campo() {
   if (!m || !listo) return <div className="campo-app"><div className="campo-body muted">Preparando datos…</div></div>;
 
   const cfg = configDe(m, dia.huerto_id);
+  const esEquipo = !perfil.email; // teléfono registrado por IMEI: el jefe se identifica con nombre y PIN
+  const listoOp = !esEquipo || !!op;
   const huerto = m.huertos.find((h) => h.id === dia.huerto_id);
   const cuartel = m.cuarteles.find((c) => c.id === dia.cuartel_id);
 
@@ -133,16 +139,22 @@ export default function Campo() {
       <div className="campo-top">
         <div>
           <div className="t">{huerto ? `${huerto.nombre} · ${cuartel?.nombre ?? 'sin cuartel'}` : 'QSecha'}</div>
-          <div className="s">{perfil.nombre} · {online ? 'en línea' : 'sin señal'}{pendientes ? ` · ${pendientes} por subir` : ''}</div>
+          <div className="s">{esEquipo ? `${op?.nombre ?? 'Sin jefe'} · ${perfil.nombre.replace(/^Equipo /, '')}` : perfil.nombre} · {online ? 'en línea' : 'sin señal'}{pendientes ? ` · ${pendientes} por subir` : ''}</div>
         </div>
         <div className="top-acciones">
           {perfil.rol === 'admin' && <a href="/admin/">Panel</a>}
-          <button type="button" onClick={() => {
+          {esEquipo ? (
+            <button type="button" onClick={() => {
+              if (!op) return;
+              if (!confirm(`¿Cambiar de jefe? ${op.nombre} deja el equipo. Lo registrado queda guardado.`)) return;
+              fijarOperador(null); setOp(null); setTab('registro');
+            }}>Cambiar jefe</button>
+          ) : <button type="button" onClick={() => {
             const aviso = pendientes
               ? `Tienes ${pendientes} registro(s) sin subir. Quedan guardados en este teléfono y se subirán cuando vuelvas a entrar con tu usuario.\n\n¿Cerrar sesión?`
               : '¿Cerrar sesión?';
             if (confirm(aviso)) salir();
-          }}>Salir</button>
+          }}>Salir</button>}
         </div>
       </div>
 
@@ -165,16 +177,20 @@ export default function Campo() {
             paso={pasoSync} error={errorInicio} onDescargar={() => sync()}
             onContinuar={() => { try { localStorage.setItem('cosecha-continuar-' + perfil.user_id, hoyISO()); } catch {} setContinuarSinDatos(true); }} />
         ) : null}
-        {tab === 'registro' && (datosDeHoy(m.ultima_descarga) || continuarSinDatos) && (
+        {esEquipo && !op && tab !== 'sync' && (datosDeHoy(m.ultima_descarga) || continuarSinDatos) && (
+          <SeleccionOperador operadores={m.operadores || []} rol="jefe" equipo={perfil.nombre}
+            onListo={() => { setOp(operadorActual()); setDiaState(leerDia()); setTab('dia'); }} />
+        )}
+        {tab === 'registro' && listoOp && (datosDeHoy(m.ultima_descarga) || continuarSinDatos) && (
           <Registro m={m} dia={dia} cfg={cfg} perfil={perfil} setDia={setDia} onCambio={recargarLocal}
             irA={(t: Tab, cod?: string) => { if (cod) setCredPrefill(cod); setTab(t); }} />
         )}
-        {tab === 'resumen' && <Resumen m={m} onCambio={recargarLocal} />}
-        {tab === 'credencial' && (
+        {tab === 'resumen' && listoOp && <Resumen m={m} onCambio={recargarLocal} />}
+        {tab === 'credencial' && listoOp && (
           <Credencial m={m} cfg={cfg} prefill={credPrefill} limpiarPrefill={() => setCredPrefill('')}
             onCambio={recargarLocal} />
         )}
-        {tab === 'dia' && (datosDeHoy(m.ultima_descarga) || continuarSinDatos) && <DiaTab m={m} dia={dia} setDia={setDia} listo={() => setTab('registro')} />}
+        {tab === 'dia' && listoOp && (datosDeHoy(m.ultima_descarga) || continuarSinDatos) && <DiaTab m={m} dia={dia} setDia={setDia} listo={() => setTab('registro')} />}
         {tab === 'sync' && (
           <Sync online={online} pendientes={pendientes} sincronizando={sincronizando} ultimo={ultimoSync}
             ultimaDescarga={m.ultima_descarga} paso={pasoSync} onSync={() => sync()} />

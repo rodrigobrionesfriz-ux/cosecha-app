@@ -2,6 +2,7 @@
 // Bins: estado combinado (servidor + movimientos hechos sin señal) y registro de movimientos.
 import { db, EventoLocal, getCache, idDispositivo, setCache, usuarioActual } from './offline';
 import { uuid } from './util';
+import { claveOperador, operadorActual } from './equipo';
 
 export type BinServidor = {
   id: string; codigo: string; estado: string; origen: string; huerto_id: string | null; cuartel_id: string | null; abierto_por: string | null; abierto_por_nombre: string | null;
@@ -55,7 +56,7 @@ function aplicar(b: BinActual, e: EventoLocal) {
 
 export async function registrarEvento(tipo: EventoLocal['tipo'], codigo: string, datos: any = {}, binId: string | null = null, fotos?: { nombre: string; blob: Blob }[]) {
   const e: EventoLocal = {
-    id: uuid(), codigo, tipo, bin_id: binId, datos, hecho_en: new Date().toISOString(),
+    id: uuid(), codigo, tipo, bin_id: binId, datos: { ...datos, operador_id: operadorActual()?.id ?? null }, hecho_en: new Date().toISOString(),
     dispositivo: idDispositivo(), usuario: usuarioActual(), fotos_locales: fotos, sync: 0,
   };
   await db.eventos.add(e);
@@ -65,7 +66,7 @@ export async function registrarEvento(tipo: EventoLocal['tipo'], codigo: string,
 // ---------- Bin abierto del jefe en este teléfono ----------
 export type BinAbierto = { id: string; codigo: string; abierto_en: string; huerto_id: string; cuartel_id: string };
 
-const claveBin = () => 'bin_abierto_' + usuarioActual();
+const claveBin = () => 'bin_abierto_' + usuarioActual() + (claveOperador() ? '_' + claveOperador() : '');
 export async function leerBinAbierto(): Promise<BinAbierto | null> { return (await getCache(claveBin())) || null; }
 export async function guardarBinAbierto(b: BinAbierto | null) { await setCache(claveBin(), b); }
 

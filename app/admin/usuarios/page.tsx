@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { errorAmigable, useTabla } from '@/lib/datos';
 import { fechaCL } from '@/lib/util';
+import Operadores from '@/components/Operadores';
 
 const ROLES: Record<string, string> = { admin: 'Administrador', jefe: 'Jefe de cuadrilla (terreno)', acopio: 'Operador de acopio', consulta: 'Solo consulta' };
 
@@ -40,6 +41,9 @@ export default function Usuarios() {
   return (
     <div>
       <h1>Usuarios</h1>
+      <Operadores esAdmin={esAdmin} />
+      <h2>Usuarios con correo</h2>
+      <p className="muted" style={{ marginTop: 0 }}>Administración, consulta, y quien prefiera entrar con correo y clave. Los teléfonos de equipos se gestionan en <a href="/admin/equipos/">Equipos</a>.</p>
       {esAdmin && (
         <form className="tarjeta" onSubmit={invitar}>
           <h3 style={{ marginTop: 0 }}>Invitar usuario</h3>
@@ -76,7 +80,7 @@ export default function Usuarios() {
         <table>
           <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th></tr></thead>
           <tbody>
-            {perfiles.filas.map((p) => (
+            {perfiles.filas.filter((p) => p.email).map((p) => (
               <tr key={p.user_id}>
                 <td>{p.nombre}</td>
                 <td>{p.email}</td>

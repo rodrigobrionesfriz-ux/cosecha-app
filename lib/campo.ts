@@ -1,5 +1,6 @@
 'use client';
 // Estado local de la app de terreno: maestros en caché + operaciones hechas sin señal.
+import { claveOperador } from './equipo';
 import { db, getCache, setCache } from './offline';
 
 export type Maestros = {
@@ -8,7 +9,7 @@ export type Maestros = {
   trabajadores: any[]; credenciales: { codigo: string; trabajador_id: string }[];
   cajas_servidor: { codigo_caja: string; leido_en: string }[];
   bins_activos: import('./bins').BinServidor[];
-  camaras: any[]; parametros_calidad: any[];
+  camaras: any[]; parametros_calidad: any[]; operadores: any[];
   ultima_descarga: string | null;
 };
 
@@ -45,7 +46,7 @@ export function jornadaActual(m: Maestros, cfg: Config, fecha = new Date()): { i
 }
 
 export async function leerMaestros(): Promise<Maestros> {
-  const k = ['huertos', 'cuarteles', 'variedades', 'especies', 'envases', 'calidades', 'turnos', 'contratistas', 'cuadrillas', 'config_huerto', 'trabajadores', 'credenciales', 'cajas_servidor', 'bins_activos', 'camaras', 'parametros_calidad', 'ultima_descarga'];
+  const k = ['huertos', 'cuarteles', 'variedades', 'especies', 'envases', 'calidades', 'turnos', 'contratistas', 'cuadrillas', 'config_huerto', 'trabajadores', 'credenciales', 'cajas_servidor', 'bins_activos', 'camaras', 'parametros_calidad', 'operadores', 'ultima_descarga'];
   const vals = await Promise.all(k.map((x) => getCache(x)));
   const m: any = {};
   k.forEach((x, i) => (m[x] = vals[i] ?? (x === 'ultima_descarga' ? null : [])));
@@ -113,11 +114,12 @@ export function nombreTrabajador(t: any): string {
   return `${t.nombres ?? ''} ${t.apellido_paterno ?? ''}`.trim();
 }
 
+const claveDia = () => 'cosecha-dia-' + (localStorage.getItem('cosecha-usuario') || '') + (claveOperador() ? '-' + claveOperador() : '');
 export function leerDia(): Dia {
-  try { return JSON.parse(localStorage.getItem('cosecha-dia-' + (localStorage.getItem('cosecha-usuario') || '')) || '{}'); } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(claveDia()) || '{}'); } catch { return {}; }
 }
 export function guardarDia(d: Dia) {
-  localStorage.setItem('cosecha-dia-' + (localStorage.getItem('cosecha-usuario') || ''), JSON.stringify(d));
+  localStorage.setItem(claveDia(), JSON.stringify(d));
 }
 
 export function faltantesDia(d: Dia, cfg: Config, m: Maestros): string[] {

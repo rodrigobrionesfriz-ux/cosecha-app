@@ -330,3 +330,12 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
 .tabla-bin th, .tabla-bin td { padding: .45rem .5rem; border-bottom: 1px solid var(--borde); text-align: left; }
 .tabla-bin .n { text-align: right; }
 .tabla-bin tfoot td { border-bottom: none; background: var(--paja-2); }
+
+/* ---------- PIN ---------- */
+.pin-caja { max-width: 360px; margin: 0 auto; }
+.pin-puntos { display: flex; justify-content: center; gap: 1rem; margin: .8rem 0 1rem; }
+.pin-puntos span { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--verde); }
+.pin-puntos span.lleno { background: var(--verde); }
+.pin-teclado { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; }
+.pin-teclado button { font-size: 1.6rem; padding: .8rem 0; border-radius: 12px; background: var(--blanco); }
+.pin-teclado button:active { background: var(--verde-claro); }

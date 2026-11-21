@@ -5,6 +5,7 @@ import { db, EntregaLocal, idDispositivo, propia, vigente } from '@/lib/offline'
 import { Config, Dia, Maestros, faltantesAdmin, faltantesDia, jornadaActual, nombreTrabajador } from '@/lib/campo';
 import { horaCorta, beep, hablar, hoyISO, normalizarCodigo, num, rutDesdeQR, tipoCodigo, uuid, vibrar } from '@/lib/util';
 import type { Perfil } from '@/lib/auth';
+import { operadorActual } from '@/lib/equipo';
 import { BinAbierto, envasesEnBin, estadoBin, ESTADOS_BIN, guardarBinAbierto, leerBinAbierto, registrarEvento } from '@/lib/bins';
 
 /** Nombre del envase en plural para mensajes: Tote → totes */
@@ -212,6 +213,7 @@ export default function Registro({ m, dia, cfg, perfil, setDia, onCambio, irA }:
       dispositivo: idDispositivo(),
       jefe_user_id: perfil.user_id,
       bin_id: usaBins ? bin?.id ?? null : null,
+      operador_id: operadorActual()?.id ?? null,
       trabajador_nombre: nombreTrabajador(t),
       sync: 0,
     };

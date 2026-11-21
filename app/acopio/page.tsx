@@ -10,6 +10,8 @@ import Armar from '@/components/acopio/Armar';
 import Camara from '@/components/acopio/Camara';
 import Despacho from '@/components/acopio/Despacho';
 import Sync from '@/components/campo/Sync';
+import SeleccionOperador from '@/components/SeleccionOperador';
+import { fijarOperador, Operador, operadorActual } from '@/lib/equipo';
 
 type Tab = 'recibir' | 'armar' | 'camara' | 'despacho' | 'sync';
 
@@ -24,6 +26,7 @@ export default function Acopio() {
   const [rechazos, setRechazos] = useState<EventoLocal[]>([]);
   const [hoy, setHoy] = useState({ recibidos: 0, armados: 0, camara: 0, despachados: 0 });
   const syncRef = useRef(false);
+  const [op, setOp] = useState<Operador | null>(null);
 
   useEffect(() => {
     if (!cargando && (!session || !perfil)) location.replace('/?ir=acopio');
@@ -60,6 +63,7 @@ export default function Acopio() {
     if (!perfil) return;
     (async () => {
       await prepararUsuario(perfil.user_id);
+      setOp(operadorActual());
       await recargarLocal();
     })();
   }, [perfil, recargarLocal]);
@@ -99,11 +103,13 @@ export default function Acopio() {
       <div className="campo-top">
         <div>
           <div className="t">Acopio</div>
-          <div className="s">{perfil.nombre} · {online ? 'en línea' : 'sin señal'}{pendientes ? ` · ${pendientes} por subir` : ''}</div>
+          <div className="s">{!perfil.email ? `${op?.nombre ?? 'Sin operador'} · ${perfil.nombre.replace(/^Equipo /, '')}` : perfil.nombre} · {online ? 'en línea' : 'sin señal'}{pendientes ? ` · ${pendientes} por subir` : ''}</div>
         </div>
         <div className="top-acciones">
           {perfil.rol === 'admin' && <a href="/admin/acopio/">Panel</a>}
-          <button type="button" onClick={() => { if (confirm(pendientes ? `Tienes ${pendientes} registro(s) sin subir. Quedan en el teléfono. ¿Cerrar sesión?` : '¿Cerrar sesión?')) salir(); }}>Salir</button>
+          {!perfil.email ? (
+            <button type="button" onClick={() => { if (op && confirm(`¿Cambiar de operador? ${op.nombre} deja el equipo.`)) { fijarOperador(null); setOp(null); } }}>Cambiar</button>
+          ) : <button type="button" onClick={() => { if (confirm(pendientes ? `Tienes ${pendientes} registro(s) sin subir. Quedan en el teléfono. ¿Cerrar sesión?` : '¿Cerrar sesión?')) salir(); }}>Salir</button>}
         </div>
       </div>
 
@@ -124,10 +130,15 @@ export default function Acopio() {
             {rechazos.slice(0, 10).map((e) => <div key={e.id} style={{ marginTop: '.3rem' }}>{TEXTO_EVENTO[e.tipo]} {e.codigo.slice(-6)}: {e.mensaje || e.resultado}</div>)}
           </details>
         )}
-        {tab === 'recibir' && <Recibir m={m} perfil={perfil} onCambio={recargarLocal} />}
-        {tab === 'armar' && <Armar m={m} perfil={perfil} onCambio={recargarLocal} />}
-        {tab === 'camara' && <Camara m={m} onCambio={recargarLocal} />}
-        {tab === 'despacho' && <Despacho m={m} perfil={perfil} onCambio={recargarLocal} />}
+        {!perfil.email && !op && tab !== 'sync' && (
+          m.ultima_descarga
+            ? <SeleccionOperador operadores={m.operadores || []} rol="acopio" equipo={perfil.nombre} onListo={() => setOp(operadorActual())} />
+            : <div className="alerta aviso">Primero sincroniza con señal para descargar los operadores.</div>
+        )}
+        {(perfil.email || op) && tab === 'recibir' && <Recibir m={m} perfil={perfil} onCambio={recargarLocal} />}
+        {(perfil.email || op) && tab === 'armar' && <Armar m={m} perfil={perfil} onCambio={recargarLocal} />}
+        {(perfil.email || op) && tab === 'camara' && <Camara m={m} onCambio={recargarLocal} />}
+        {(perfil.email || op) && tab === 'despacho' && <Despacho m={m} perfil={perfil} onCambio={recargarLocal} />}
         {tab === 'sync' && <Sync online={online} pendientes={pendientes} sincronizando={sincronizando} ultimo={ultimoSync} ultimaDescarga={m.ultima_descarga} onSync={() => sync(false)} />}
       </div>
 
