@@ -168,7 +168,7 @@ export async function descargarMaestros(): Promise<void> {
   const cajas = await traerTodo('entregas', 'codigo_caja,leido_en', (q) => q.not('codigo_caja', 'is', null).eq('estado', 'A').gte('leido_en', desde));
   await setCache('cajas_servidor', cajas);
   // Bins en curso (para validar sin señal y saber qué hay en acopio y cámara)
-  const bins = await traerTodo('v_bins', 'id,codigo,estado,origen,huerto_id,abierto_por,abierto_por_nombre,huerto,cuartel,variedad,cuadrilla,envases,kilos,abierto_en,cerrado_en,recibido_en,camara_id,camara,camara_inicio,minutos_alerta,minutos_objetivo,despacho_id',
+  const bins = await traerTodo('v_bins', 'id,codigo,estado,origen,huerto_id,cuartel_id,abierto_por,abierto_por_nombre,huerto,cuartel,variedad,cuadrilla,envases,kilos,abierto_en,cerrado_en,recibido_en,camara_id,camara,camara_inicio,minutos_alerta,minutos_objetivo,despacho_id',
     (q) => q.not('estado', 'in', '(despachado,anulado)'));
   await setCache('bins_activos', bins);
   await setCache('ultima_descarga', new Date().toISOString());

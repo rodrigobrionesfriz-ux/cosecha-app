@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { cargarEntregas, Fila } from '@/lib/reportes';
 import { cargarTabla, useTabla } from '@/lib/datos';
+import { supabase } from '@/lib/supabase';
 import { hoyISO, horaCorta, num } from '@/lib/util';
 import { BarrasH, Columnas, Punto, TablaPuntos, TarjetaGrafico } from '@/components/Graficos';
 
@@ -44,6 +45,10 @@ export default function Dashboard() {
   const [especieId, setEspecieId] = useState('');
   const [filas, setFilas] = useState<Fila[]>([]);
   const [bins, setBins] = useState<any[]>([]);
+  const [porConciliar, setPorConciliar] = useState(0);
+  useEffect(() => {
+    supabase.from('conciliaciones_bin').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente').then(({ count }) => setPorConciliar(count || 0));
+  }, [filas]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const huertos = useTabla<any>('huertos', 'id,nombre', 'nombre');
@@ -189,6 +194,9 @@ export default function Dashboard() {
       )}
 
       {error && <div className="alerta error">{error}</div>}
+      {porConciliar > 0 && (
+        <div className="alerta aviso">{porConciliar} bin(s) con diferencias entre campo y acopio. Revísalos en <a href="/admin/acopio/">Acopio y bins → Conciliación</a>.</div>
+      )}
 
       <div className="kpis">
         <div className="kpi"><div className="v">{num(r.kilos)}</div><div className="l">Kilos estimados</div></div>

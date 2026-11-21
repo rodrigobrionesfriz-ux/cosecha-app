@@ -7,8 +7,8 @@ import { ESTADOS_BIN, TEXTO_EVENTO } from '@/lib/bins';
 import { descargarCSV, fechaCL, horaCorta, hoyISO, num, uuid } from '@/lib/util';
 import Crud from '@/components/Crud';
 
-type Tab = 'Bins' | 'Despachos' | 'Rechazos' | 'Cámaras y calidad';
-const TABS: Tab[] = ['Bins', 'Despachos', 'Rechazos', 'Cámaras y calidad'];
+type Tab = 'Bins' | 'Conciliación' | 'Despachos' | 'Rechazos' | 'Cámaras y calidad';
+const TABS: Tab[] = ['Bins', 'Conciliación', 'Despachos', 'Rechazos', 'Cámaras y calidad'];
 const ORIGEN: Record<string, string> = { campo: 'Campo', acopio: 'Armado en acopio', recepcion: 'Sin registro de campo' };
 
 const fh = (iso?: string | null) => (iso ? `${fechaCL(iso)} ${horaCorta(iso)}` : '');
@@ -26,6 +26,10 @@ export default function AcopioAdmin() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [sel, setSel] = useState<any | null>(null);
+  const [pendConc, setPendConc] = useState(0);
+  useEffect(() => {
+    supabase.from('conciliaciones_bin').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente').then(({ count }) => setPendConc(count || 0));
+  }, [tab]);
   const huertos = useTabla<any>('huertos', 'id,nombre', 'nombre');
   const especies = useTabla<any>('especies', 'id,nombre', 'nombre');
   const params = useTabla<any>('parametros_calidad', 'id,nombre,unidad', 'orden');
@@ -55,7 +59,7 @@ export default function AcopioAdmin() {
     } catch (e: any) { setError(e.message); }
     setCargando(false);
   }
-  useEffect(() => { if (tab !== 'Cámaras y calidad') cargar(); }, [tab, desde, hasta, estado, huertoId]); // eslint-disable-line
+  useEffect(() => { if (tab !== 'Cámaras y calidad' && tab !== 'Conciliación') cargar(); }, [tab, desde, hasta, estado, huertoId]); // eslint-disable-line
 
   const tot = useMemo(() => {
     const c = (f: (b: any) => boolean) => bins.filter(f).length;
@@ -87,10 +91,12 @@ export default function AcopioAdmin() {
     <div>
       <div className="encabezado"><h1>Acopio y bins</h1></div>
       <div className="tabs">
-        {TABS.map((t) => <button key={t} className={tab === t ? 'activo' : ''} onClick={() => { setTab(t); setSel(null); }}>{t}</button>)}
+        {TABS.map((t) => <button key={t} className={tab === t ? 'activo' : ''} onClick={() => { setTab(t); setSel(null); }}>{t}{t === 'Conciliación' && pendConc > 0 ? ` (${pendConc})` : ''}</button>)}
       </div>
 
-      {tab !== 'Cámaras y calidad' && (
+      {tab === 'Conciliación' && <Conciliacion esAdmin={perfil?.rol === 'admin'} onCambio={(n) => setPendConc(n)} />}
+
+      {tab !== 'Cámaras y calidad' && tab !== 'Conciliación' && (
         <div className="fila filtros" style={{ marginBottom: '1rem' }}>
           <div className="campo"><label>Desde</label><input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></div>
           <div className="campo"><label>Hasta</label><input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></div>
@@ -281,6 +287,148 @@ function DetalleBin({ b, params, esAdmin, cerrar, recargar }: { b: any; params: 
         </div>
       </div>
       {urls.length > 0 && <div className="fotos" style={{ marginTop: '.6rem' }}>{urls.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer" className="foto"><img src={u} alt="" /></a>)}</div>}
+    </div>
+  );
+}
+
+
+/** Diferencias entre lo que registró el jefe en campo y lo que declaró el acopio, y alertas de bins */
+function Conciliacion({ esAdmin, onCambio }: { esAdmin: boolean; onCambio: (pendientes: number) => void }) {
+  const [pend, setPend] = useState<any[]>([]);
+  const [hist, setHist] = useState<any[]>([]);
+  const [alertas, setAlertas] = useState<{ sinCampo: any[]; despues: any[]; abiertos: any[] }>({ sinCampo: [], despues: [], abiertos: [] });
+  const [cargando, setCargando] = useState(true);
+  const [trabajando, setTrabajando] = useState('');
+  const [error, setError] = useState('');
+
+  async function cargar() {
+    setCargando(true); setError('');
+    try {
+      const p = await cargarTabla<any>('v_conciliaciones', '*', (q) => q.eq('estado', 'pendiente'), 'creado_en');
+      const h = await cargarTabla<any>('v_conciliaciones', '*', (q) => q.neq('estado', 'pendiente').gte('resuelto_en', new Date(Date.now() - 14 * 86400000).toISOString()), 'resuelto_en');
+      const hace12 = new Date(Date.now() - 12 * 3600000).toISOString();
+      const cols = 'id,codigo,origen,estado,huerto,cuartel,acopio_cuartel,recibido_en,recibido_por_nombre,abierto_en,abierto_por_nombre,entregas_despues_recepcion,envases';
+      const [sinCampo, despues, abiertos] = await Promise.all([
+        cargarTabla<any>('v_bins', cols, (q) => q.eq('origen', 'recepcion').neq('estado', 'anulado')),
+        cargarTabla<any>('v_bins', cols, (q) => q.gt('entregas_despues_recepcion', 0).neq('estado', 'anulado')),
+        cargarTabla<any>('v_bins', cols, (q) => q.eq('estado', 'abierto').lt('abierto_en', hace12)),
+      ]);
+      setPend(p); setHist(h.reverse());
+      setAlertas({ sinCampo, despues, abiertos });
+      onCambio(p.length);
+    } catch (e: any) { setError(e.message); }
+    setCargando(false);
+  }
+  useEffect(() => { cargar(); }, []); // eslint-disable-line
+
+  async function resolver(c: any, opcion: 'campo' | 'acopio' | 'descartar') {
+    const txt = opcion === 'acopio'
+      ? `Bin ${c.codigo}: se cambia a ${c.acopio_cuartel} el bin y sus ${c.entregas} entrega(s) (${num(c.envases)} envases). Queda registrado en la auditoría. ¿Aplicar?`
+      : opcion === 'campo' ? `Bin ${c.codigo}: se mantiene ${c.campo_cuartel} (dato del jefe). ¿Confirmar?` : `¿Descartar la diferencia del bin ${c.codigo}?`;
+    if (!confirm(txt)) return;
+    setTrabajando(c.id);
+    const { data, error } = await supabase.rpc('resolver_conciliacion', { p_id: c.id, p_opcion: opcion });
+    setTrabajando('');
+    if (error) return alert(error.message);
+    if (opcion === 'acopio') alert(`Listo: ${(data as any)?.entregas_corregidas ?? 0} entrega(s) corregida(s).`);
+    cargar();
+  }
+
+  const filasAlerta = [
+    ...alertas.sinCampo.map((b) => ({ b, t: 'Sin datos de campo', d: `Recibido ${fh(b.recibido_en)} por ${b.recibido_por_nombre ?? '—'} · acopio dijo ${b.acopio_cuartel ?? '—'}` })),
+    ...alertas.despues.map((b) => ({ b, t: 'Entregas después de recibido', d: `${b.entregas_despues_recepcion} entrega(s) posteriores a la recepción (${fh(b.recibido_en)}). Probablemente el jefe no cerró el bin.` })),
+    ...alertas.abiertos.map((b) => ({ b, t: 'Abierto mucho tiempo', d: `Abierto ${fh(b.abierto_en)} por ${b.abierto_por_nombre ?? '—'} · ${num(b.envases)} envases` })),
+  ];
+
+  async function todosCampo() {
+    if (!confirm(`¿Mantener el dato de campo en los ${pend.length} bins pendientes?`)) return;
+    setTrabajando('todos');
+    for (const c of pend) {
+      const { error } = await supabase.rpc('resolver_conciliacion', { p_id: c.id, p_opcion: 'campo' });
+      if (error) { alert(`${c.codigo}: ${error.message}`); break; }
+    }
+    setTrabajando('');
+    cargar();
+  }
+
+  return (
+    <div>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Cuando los jefes sincronizan, cada bin se compara con lo que declaró el acopio. Si el cuartel no coincide, el sistema deja
+        automáticamente el dato de campo (que es el de las entregas) y lo muestra aquí para que confirmes o apliques el del acopio.
+      </p>
+      {error && <div className="alerta error">{error}</div>}
+      {cargando && <p className="muted">Cargando…</p>}
+
+      <div className="encabezado" style={{ marginBottom: '.4rem' }}>
+        <h2 style={{ margin: 0 }}>Pendientes ({pend.length})</h2>
+        <div className="acciones">
+          <button onClick={cargar}>Actualizar</button>
+          {esAdmin && pend.length > 1 && <button onClick={todosCampo} disabled={!!trabajando}>Mantener campo en todos</button>}
+        </div>
+      </div>
+      <div className="tabla-wrap">
+        <table>
+          <thead><tr><th>Bin</th><th>Campo (jefe)</th><th>Acopio</th><th className="n">Entregas</th><th className="n">Envases</th><th>Recibido</th><th></th></tr></thead>
+          <tbody>
+            {!pend.length && !cargando && <tr><td colSpan={7} className="muted">Sin diferencias pendientes. ✔</td></tr>}
+            {pend.map((c) => (
+              <tr key={c.id}>
+                <td className="mono">{c.codigo.slice(-8)}</td>
+                <td><b>{c.campo_cuartel}</b><div className="muted">{c.campo_huerto}{c.jefe ? ` · ${c.jefe}` : ''}</div></td>
+                <td><b>{c.acopio_cuartel}</b><div className="muted">{c.acopio_huerto}{c.recibido_por_nombre ? ` · ${c.recibido_por_nombre}` : ''}</div></td>
+                <td className="n">{c.entregas}</td>
+                <td className="n">{num(c.envases)}</td>
+                <td>{fh(c.recibido_en)}</td>
+                <td>
+                  {esAdmin ? (
+                    <div className="acciones" style={{ flexWrap: 'nowrap' }}>
+                      <button className="chico" disabled={!!trabajando} onClick={() => resolver(c, 'campo')}>Mantener campo</button>
+                      <button className="chico primario" disabled={!!trabajando} onClick={() => resolver(c, 'acopio')}>Usar acopio</button>
+                      <button className="chico" disabled={!!trabajando} onClick={() => resolver(c, 'descartar')}>Descartar</button>
+                    </div>
+                  ) : <span className="muted">Solo administración</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Alertas</h2>
+      <div className="kpis">
+        <div className="kpi"><div className="v">{alertas.sinCampo.length}</div><div className="l">Recibidos sin datos de campo (el jefe no ha sincronizado)</div></div>
+        <div className="kpi"><div className="v">{alertas.despues.length}</div><div className="l">Bins con entregas registradas después de recibidos</div></div>
+        <div className="kpi"><div className="v">{alertas.abiertos.length}</div><div className="l">Bins abiertos hace más de 12 horas</div></div>
+      </div>
+      {filasAlerta.length > 0 && (
+        <div className="tabla-wrap">
+          <table>
+            <thead><tr><th>Bin</th><th>Alerta</th><th>Cuartel</th><th>Detalle</th></tr></thead>
+            <tbody>
+              {filasAlerta.map(({ b, t, d }) => (
+                <tr key={b.id + t}><td className="mono">{b.codigo.slice(-8)}</td><td><span className="badge">{t}</span></td><td>{b.cuartel ?? '—'}</td><td>{d}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {hist.length > 0 && (
+        <details style={{ marginTop: '1rem' }}>
+          <summary><b>Resueltas en los últimos 14 días ({hist.length})</b></summary>
+          <div className="tabla-wrap" style={{ marginTop: '.5rem' }}>
+            <table>
+              <thead><tr><th>Bin</th><th>Campo</th><th>Acopio</th><th>Decisión</th><th>Por</th><th>Cuándo</th></tr></thead>
+              <tbody>{hist.map((c) => (
+                <tr key={c.id}><td className="mono">{c.codigo.slice(-8)}</td><td>{c.campo_cuartel}</td><td>{c.acopio_cuartel}</td>
+                  <td>{c.estado === 'acopio' ? 'Se usó acopio' : c.estado === 'campo' ? 'Se mantuvo campo' : 'Descartada'}{c.nota ? <div className="muted">{c.nota}</div> : null}</td>
+                  <td>{c.resuelto_por_nombre ?? 'Automático'}</td><td>{fh(c.resuelto_en)}</td></tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </details>
+      )}
     </div>
   );
 }

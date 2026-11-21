@@ -4,7 +4,7 @@ import { db, EventoLocal, getCache, idDispositivo, setCache, usuarioActual } fro
 import { uuid } from './util';
 
 export type BinServidor = {
-  id: string; codigo: string; estado: string; origen: string; huerto_id: string | null; abierto_por: string | null; abierto_por_nombre: string | null;
+  id: string; codigo: string; estado: string; origen: string; huerto_id: string | null; cuartel_id: string | null; abierto_por: string | null; abierto_por_nombre: string | null;
   huerto: string | null; cuartel: string | null; variedad: string | null; cuadrilla: string | null;
   envases: number; kilos: number; abierto_en: string | null; cerrado_en: string | null; recibido_en: string | null;
   camara_id: string | null; camara: string | null; camara_inicio: string | null; minutos_alerta: number | null; minutos_objetivo: number | null;
