@@ -70,7 +70,7 @@ export default function Tarjetas() {
     <div>
       <h1>Tarjetas QR</h1>
       <p className="muted" style={{ marginTop: -8 }}>
-        Los códigos siguen el formato <span className="mono">BC-W-0100000001</span> (credencial) y <span className="mono">BC-B-0100000001</span> (caja).
+        Los códigos siguen el formato <span className="mono">BC-W-0100000001</span> (credencial), <span className="mono">BC-B-0100000001</span> (caja o tote) y <span className="mono">BC-L-0100000001</span> (tarja de bin).
         Los dos primeros dígitos son el código de la empresa. Para credenciales con el nombre impreso, selecciona trabajadores en <a href="/admin/trabajadores/">Trabajadores</a>.
       </p>
 
@@ -118,7 +118,7 @@ export default function Tarjetas() {
 
       <h2>Consultar una tarjeta</h2>
       <form className="fila" onSubmit={consultar} style={{ maxWidth: 520 }}>
-        <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="BC-W-0100000001" className="mono" />
+        <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="BC-W-…, BC-B-… o BC-L-…" className="mono" />
         <button style={{ flex: '0 0 auto' }}>Buscar</button>
       </form>
       {hallada === null && <div className="alerta aviso">No existe ese código.</div>}
