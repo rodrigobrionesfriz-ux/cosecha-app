@@ -1,7 +1,9 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { db, contarPendientes, descargarMaestros, limpiarAntiguas, prepararUsuario, sincronizar } from '@/lib/offline';
+import { db, contarPendientes, datosDeHoy, limpiarAntiguas, prepararUsuario, sincronizar } from '@/lib/offline';
+import InicioDia from '@/components/campo/InicioDia';
+import { hoyISO } from '@/lib/util';
 import { leerMaestros, leerDia, guardarDia, Maestros, Dia, configDe, limpiarLocalesSiCorresponde } from '@/lib/campo';
 import Registro from '@/components/campo/Registro';
 import DiaTab from '@/components/campo/Dia';
@@ -26,6 +28,9 @@ export default function Campo() {
   const [ultimoSync, setUltimoSync] = useState<{ ok: boolean; msg: string; cuando: string } | null>(null);
   const [credPrefill, setCredPrefill] = useState('');
   const [rechazos, setRechazos] = useState<EventoLocal[]>([]);
+  const [pasoSync, setPasoSync] = useState('');
+  const [errorInicio, setErrorInicio] = useState('');
+  const [continuarSinDatos, setContinuarSinDatos] = useState(false);
   const syncRef = useRef(false);
   const esAdminRef = useRef(false);
   esAdminRef.current = perfil?.rol === 'admin';
@@ -42,52 +47,55 @@ export default function Campo() {
     setRechazos(await eventosRechazados());
   }, []);
 
-  const sync = useCallback(async (silencioso = false) => {
-    if (syncRef.current || !navigator.onLine) return;
+  // Sincronización solo bajo demanda: sube lo registrado y luego descarga todo de nuevo
+  const sync = useCallback(async () => {
+    if (syncRef.current) return;
+    if (!navigator.onLine) { setUltimoSync({ ok: false, msg: 'Sin señal. Intenta donde haya cobertura.', cuando: new Date().toISOString() }); return; }
     syncRef.current = true;
-    setSincronizando(true);
+    setSincronizando(true); setErrorInicio('');
     try {
-      const r = await sincronizar();
+      const r = await sincronizar(setPasoSync);
       await limpiarLocalesSiCorresponde();
       await limpiarAntiguas();
-      const msg = r.errores.length ? r.errores.join(' · ') : `Subidas ${r.entregas} entregas${r.asignaciones ? `, ${r.asignaciones} credenciales` : ''}${r.eventos ? `, ${r.eventos} movimientos de bins` : ''}.${r.actualizadas && esAdminRef.current ? ` ${r.actualizadas} registro(s) corregido(s) por administración.` : ''} Datos actualizados.`;
+      const d = r.resumen;
+      const subido = `Subidas ${r.entregas} entregas${r.asignaciones ? `, ${r.asignaciones} credenciales` : ''}${r.eventos ? `, ${r.eventos} movimientos de bins` : ''}.`;
+      const bajado = ` Descargados ${d.trabajadores} trabajadores (${d.credenciales} con credencial), ${d.contratistas} contratistas, ${d.huertos} huertos y ${d.cuarteles} cuarteles.`;
+      const corr = r.actualizadas && esAdminRef.current ? ` ${r.actualizadas} registro(s) corregido(s) por administración.` : '';
+      const msg = r.errores.length ? r.errores.join(' · ') : subido + bajado + corr;
       setUltimoSync({ ok: !r.errores.length, msg, cuando: new Date().toISOString() });
+      if (r.errores.length) setErrorInicio(r.errores.join(' · '));
     } catch (e: any) {
-      if (!silencioso) setUltimoSync({ ok: false, msg: e.message || 'Error de conexión', cuando: new Date().toISOString() });
+      const msg = e.message || 'Error de conexión';
+      setUltimoSync({ ok: false, msg, cuando: new Date().toISOString() });
+      setErrorInicio(msg);
     }
+    setPasoSync('');
     await recargarLocal();
     setSincronizando(false);
     syncRef.current = false;
   }, [recargarLocal]);
 
-  // carga inicial
+  // carga inicial: solo datos del teléfono (sin descargar nada automáticamente)
   useEffect(() => {
     if (!perfil) return;
     (async () => {
       await prepararUsuario(perfil.user_id);
       setDiaState(leerDia()); // la configuración del día es de cada usuario
+      try { setContinuarSinDatos(localStorage.getItem('cosecha-continuar-' + perfil.user_id) === hoyISO()); } catch {}
       setListo(true);
       await recargarLocal();
-      const ult = await db.cache.get('ultima_descarga');
-      if (!ult && navigator.onLine) {
-        try { await descargarMaestros(); } catch {}
-        await recargarLocal();
-      } else if (navigator.onLine) {
-        sync(true);
-      }
     })();
-  }, [perfil, recargarLocal, sync]);
+  }, [perfil, recargarLocal]);
 
-  // conectividad y sincronización automática cada 3 minutos
+  // solo se muestra si hay señal; no sincroniza solo
   useEffect(() => {
-    const on = () => { setOnline(true); sync(true); };
+    const on = () => setOnline(true);
     const off = () => setOnline(false);
     setOnline(navigator.onLine);
     window.addEventListener('online', on);
     window.addEventListener('offline', off);
-    const t = setInterval(() => { if (navigator.onLine) sync(true); }, 180000);
-    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); clearInterval(t); };
-  }, [sync]);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
 
   // mantener pantalla encendida mientras se registra
   useEffect(() => {
@@ -142,9 +150,7 @@ export default function Campo() {
         {!m.huertos.length && m.ultima_descarga && (
           <div className="alerta aviso">No hay cuarteles habilitados para cosecha. El administrador debe habilitarlos en el panel (Huertos y maestros → Cuarteles) y luego toca Sincronizar.</div>
         )}
-        {!m.ultima_descarga && (
-          <div className="alerta aviso">Este teléfono aún no descarga los datos. Conéctate a internet y toca <b>Sincronizar</b>.</div>
-        )}
+
         {rechazos.length > 0 && (tab === 'sync' || tab === 'registro') && (
           <details className="alerta error">
             <summary>{rechazos.length} movimiento(s) de bin rechazado(s) por el servidor</summary>
@@ -154,19 +160,24 @@ export default function Campo() {
         {deOtros > 0 && tab === 'sync' && (
           <div className="alerta aviso">Este teléfono tiene {deOtros} registro(s) sin subir de <b>otro usuario</b>. Para subirlos, ese usuario debe entrar en este teléfono y sincronizar.</div>
         )}
-        {tab === 'registro' && (
+        {(tab === 'registro' || tab === 'dia') && !datosDeHoy(m.ultima_descarga) && !continuarSinDatos ? (
+          <InicioDia online={online} ultimaDescarga={m.ultima_descarga} pendientes={pendientes} sincronizando={sincronizando}
+            paso={pasoSync} error={errorInicio} onDescargar={() => sync()}
+            onContinuar={() => { try { localStorage.setItem('cosecha-continuar-' + perfil.user_id, hoyISO()); } catch {} setContinuarSinDatos(true); }} />
+        ) : null}
+        {tab === 'registro' && (datosDeHoy(m.ultima_descarga) || continuarSinDatos) && (
           <Registro m={m} dia={dia} cfg={cfg} perfil={perfil} setDia={setDia} onCambio={recargarLocal}
             irA={(t: Tab, cod?: string) => { if (cod) setCredPrefill(cod); setTab(t); }} />
         )}
         {tab === 'resumen' && <Resumen m={m} onCambio={recargarLocal} />}
         {tab === 'credencial' && (
           <Credencial m={m} cfg={cfg} prefill={credPrefill} limpiarPrefill={() => setCredPrefill('')}
-            onCambio={async () => { await recargarLocal(); if (navigator.onLine) sync(true); }} />
+            onCambio={recargarLocal} />
         )}
-        {tab === 'dia' && <DiaTab m={m} dia={dia} setDia={setDia} listo={() => setTab('registro')} />}
+        {tab === 'dia' && (datosDeHoy(m.ultima_descarga) || continuarSinDatos) && <DiaTab m={m} dia={dia} setDia={setDia} listo={() => setTab('registro')} />}
         {tab === 'sync' && (
           <Sync online={online} pendientes={pendientes} sincronizando={sincronizando} ultimo={ultimoSync}
-            ultimaDescarga={m.ultima_descarga} onSync={() => sync(false)} />
+            ultimaDescarga={m.ultima_descarga} paso={pasoSync} onSync={() => sync()} />
         )}
       </div>
 

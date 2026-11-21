@@ -315,12 +315,33 @@ export async function bajarEntregasPropias(): Promise<number> {
   return cambios;
 }
 
-export async function sincronizar() {
+export type ResumenDescarga = { huertos: number; cuarteles: number; contratistas: number; trabajadores: number; credenciales: number };
+
+/**
+ * Sincronización bajo demanda: 1) sube lo registrado en el teléfono, 2) descarga todo de nuevo
+ * (huertos, cuarteles en cosecha, contratistas, trabajadores, credenciales, bins), 3) trae correcciones de la nube.
+ */
+export async function sincronizar(onPaso?: (texto: string) => void) {
+  onPaso?.('1 de 3 · Subiendo registros de cosecha…');
   const r = await subirPendientes();
+  onPaso?.('2 de 3 · Descargando trabajadores, contratistas, huertos y cuarteles…');
   await descargarMaestros();
+  onPaso?.('3 de 3 · Revisando cambios hechos en la nube…');
   let actualizadas = 0;
   try { actualizadas = await bajarEntregasPropias(); } catch {}
-  return { ...r, actualizadas };
+  const largo = async (k: string) => ((await getCache(k)) || []).length;
+  const resumen: ResumenDescarga = {
+    huertos: await largo('huertos'), cuarteles: await largo('cuarteles'), contratistas: await largo('contratistas'),
+    trabajadores: await largo('trabajadores'), credenciales: await largo('credenciales'),
+  };
+  await setCache('resumen_descarga', resumen);
+  onPaso?.('');
+  return { ...r, actualizadas, resumen };
+}
+
+/** ¿Los datos del teléfono se descargaron hoy? */
+export function datosDeHoy(ultimaDescarga: string | null | undefined) {
+  return !!ultimaDescarga && hoyISO(new Date(ultimaDescarga)) === hoyISO();
 }
 
 export async function limpiarAntiguas() {

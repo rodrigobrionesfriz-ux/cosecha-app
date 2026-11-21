@@ -9,8 +9,8 @@ const RESULTADOS: Record<string, string> = {
   CI: 'Credencial no existe o está anulada', RI: 'RUT inválido', TB: 'Trabajador bloqueado', TN: 'Trabajador nuevo sin nombre',
 };
 
-export default function Sync({ online, pendientes, sincronizando, ultimo, ultimaDescarga, onSync }: {
-  online: boolean; pendientes: number; sincronizando: boolean;
+export default function Sync({ online, pendientes, sincronizando, ultimo, ultimaDescarga, paso, onSync }: {
+  online: boolean; pendientes: number; sincronizando: boolean; paso?: string;
   ultimo: { ok: boolean; msg: string; cuando: string } | null; ultimaDescarga: string | null; onSync: () => void;
 }) {
   const { perfil, salir } = useAuth();
@@ -32,15 +32,17 @@ export default function Sync({ online, pendientes, sincronizando, ultimo, ultima
   return (
     <div>
       <div className={`alerta ${online ? 'ok' : 'aviso'}`}>
-        {online ? 'Con conexión.' : 'Sin señal. Todo se guarda en el teléfono y se sube al volver la conexión.'}
+        {online ? 'Con conexión.' : 'Sin señal. Todo queda guardado en el teléfono; sincroniza cuando tengas cobertura.'}
       </div>
       <div className="kpis" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <div className="kpi"><div className="v">{pendientes}</div><div className="l">Registros por subir</div></div>
-        <div className="kpi"><div className="v">{ultimaDescarga ? horaCorta(ultimaDescarga) : '—'}</div><div className="l">Última actualización</div></div>
+        <div className="kpi"><div className="v">{ultimaDescarga ? horaCorta(ultimaDescarga) : '—'}</div><div className="l">Última actualización{ultimaDescarga ? ` · ${new Date(ultimaDescarga).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', timeZone: 'America/Santiago' })}` : ''}</div></div>
       </div>
       <button className="primario grande" onClick={onSync} disabled={!online || sincronizando}>
         {sincronizando ? 'Sincronizando…' : 'Sincronizar ahora'}
       </button>
+      <p className="muted" style={{ fontSize: '.88rem' }}>La app no sincroniza sola. Al tocar Sincronizar: 1) sube los registros de cosecha, credenciales y bins, 2) descarga de nuevo trabajadores, contratistas, huertos y cuarteles, 3) trae los cambios hechos en la nube.</p>
+      {sincronizando && paso && <div className="alerta info">{paso}</div>}
       {ultimo && <div className={`alerta ${ultimo.ok ? 'ok' : 'error'}`}>{horaCorta(ultimo.cuando)} · {ultimo.msg}</div>}
 
       {conProblema.length > 0 && (

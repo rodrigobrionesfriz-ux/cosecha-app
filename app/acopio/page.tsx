@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { db, contarPendientes, descargarMaestros, EventoLocal, limpiarAntiguas, prepararUsuario, sincronizar } from '@/lib/offline';
+import { db, contarPendientes, datosDeHoy, EventoLocal, limpiarAntiguas, prepararUsuario, sincronizar } from '@/lib/offline';
 import { leerMaestros, Maestros } from '@/lib/campo';
 import { eventosRechazados, TEXTO_EVENTO } from '@/lib/bins';
 import { hoyISO, num } from '@/lib/util';
@@ -46,7 +46,7 @@ export default function Acopio() {
     try {
       const r = await sincronizar();
       await limpiarAntiguas();
-      const msg = r.errores.length ? r.errores.join(' · ') : `Subidos ${r.eventos} movimientos de bins. Datos actualizados.`;
+      const msg = r.errores.length ? r.errores.join(' · ') : `Subidos ${r.eventos} movimientos de bins. Descargados ${r.resumen.trabajadores} trabajadores, ${r.resumen.huertos} huertos y ${r.resumen.cuarteles} cuarteles; bins en curso actualizados.`;
       setUltimoSync({ ok: !r.errores.length, msg, cuando: new Date().toISOString() });
     } catch (e: any) {
       if (!silencioso) setUltimoSync({ ok: false, msg: e.message || 'Error de conexión', cuando: new Date().toISOString() });
@@ -61,22 +61,18 @@ export default function Acopio() {
     (async () => {
       await prepararUsuario(perfil.user_id);
       await recargarLocal();
-      const ult = await db.cache.get('ultima_descarga');
-      if (!ult && navigator.onLine) { try { await descargarMaestros(); } catch {} await recargarLocal(); }
-      else if (navigator.onLine) sync(true);
     })();
-  }, [perfil, recargarLocal, sync]);
+  }, [perfil, recargarLocal]);
 
-  // sincronización automática cada 2 minutos: en acopio importa ver los bins que llegan del campo
+  // sin sincronización automática: solo se muestra el estado de la señal
   useEffect(() => {
-    const on = () => { setOnline(true); sync(true); };
+    const on = () => setOnline(true);
     const off = () => setOnline(false);
     setOnline(navigator.onLine);
     window.addEventListener('online', on);
     window.addEventListener('offline', off);
-    const t = setInterval(() => { if (navigator.onLine) sync(true); }, 120000);
-    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); clearInterval(t); };
-  }, [sync]);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
 
   useEffect(() => {
     let lock: any = null;
@@ -112,7 +108,12 @@ export default function Acopio() {
       </div>
 
       <div className="campo-body">
-        {!m.ultima_descarga && <div className="alerta aviso">Este teléfono aún no descarga los datos. Conéctate a internet y toca <b>Sincronizar</b>.</div>}
+        {!datosDeHoy(m.ultima_descarga) && tab !== 'sync' && (
+          <div className="alerta aviso">
+            Los datos del teléfono no son de hoy. Con señal, toca <b>Sincronizar</b> para traer los bins que vienen del campo.
+            <div style={{ marginTop: '.5rem' }}><button className="primario" disabled={!online || sincronizando} onClick={() => sync(false)}>{sincronizando ? 'Sincronizando…' : 'Sincronizar ahora'}</button></div>
+          </div>
+        )}
         <div className="contexto">
           <span>Hoy</span>
           <span><b>{num(hoy.recibidos + hoy.armados)}</b> recibidos · <b>{hoy.camara}</b> a cámara · <b>{hoy.despachados}</b> despachados</span>
