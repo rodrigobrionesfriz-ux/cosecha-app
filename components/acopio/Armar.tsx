@@ -22,7 +22,7 @@ export default function Armar({ m, perfil, onCambio }: { m: Maestros; perfil: Pe
   const cfg = configDe(m, huerto || undefined);
   const envaseId = envase || cfg.envase_id || '';
   const env = m.envases.find((e) => e.id === envaseId);
-  const cuarteles = m.cuarteles_todos.filter((c) => c.huerto_id === huerto);
+  const cuarteles = m.cuarteles.filter((c) => c.huerto_id === huerto);
   const params = m.parametros_calidad.filter((p) => p.activo !== false).sort((a, b) => a.orden - b.orden);
   const n = Number(envases.replace(',', '.'));
   const faltan = [!huerto && 'huerto', !cuartel && 'cuartel', !envaseId && 'envase', !(n > 0) && 'cantidad de envases'].filter(Boolean) as string[];
@@ -37,7 +37,7 @@ export default function Armar({ m, perfil, onCambio }: { m: Maestros; perfil: Pe
     if (b.estado) return error('Bin en uso', `${codigo} · ${ESTADOS_BIN[b.estado]}`);
     const v = validarCalidad(params, valores, !!cfg.exige_calidad_recepcion);
     if (!v.ok) return error('Revisa la calidad', v.error);
-    const c = m.cuarteles_todos.find((x) => x.id === cuartel);
+    const c = m.cuarteles.find((x) => x.id === cuartel);
     await registrarEvento('armar', codigo, {
       huerto_id: huerto, cuartel_id: cuartel, variedad_id: c?.variedad_id ?? null, envase_id: envaseId,
       cuadrilla_id: cuadrilla || null, envases: n, calidad: v.datos, observacion: obs.trim() || null, fotos: fotos.map((f) => f.nombre),
@@ -55,23 +55,14 @@ export default function Armar({ m, perfil, onCambio }: { m: Maestros; perfil: Pe
         <label>Huerto</label>
         <select value={huerto} onChange={(e) => { setHuerto(e.target.value); setCuartel(''); }}>
           <option value="">Seleccionar…</option>
-          {m.huertos_todos.map((h) => <option key={h.id} value={h.id}>{h.nombre}</option>)}
+          {m.huertos.map((h) => <option key={h.id} value={h.id}>{h.nombre}</option>)}
         </select>
       </div>
       <div className="campo">
         <label>Cuartel</label>
         <select value={cuartel} onChange={(e) => setCuartel(e.target.value)} disabled={!huerto}>
           <option value="">Seleccionar…</option>
-                {cuarteles.filter((c) => c.en_cosecha !== false).length > 0 && (
-                  <optgroup label="En cosecha">
-                    {cuarteles.filter((c) => c.en_cosecha !== false).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                  </optgroup>
-                )}
-                {cuarteles.some((c) => c.en_cosecha === false) && (
-                  <optgroup label="Otros cuarteles">
-                    {cuarteles.filter((c) => c.en_cosecha === false).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                  </optgroup>
-                )}
+          {cuarteles.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
         </select>
       </div>
       <div className="fila">
