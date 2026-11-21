@@ -50,7 +50,8 @@ export async function leerMaestros(): Promise<Maestros> {
   const vals = await Promise.all(k.map((x) => getCache(x)));
   const m: any = {};
   k.forEach((x, i) => (m[x] = vals[i] ?? (x === 'ultima_descarga' ? null : [])));
-  // solo huertos con al menos un cuartel habilitado para cosecha
+  // solo cuarteles habilitados para cosecha (aunque el caché tenga otros) y huertos con al menos uno
+  m.cuarteles = m.cuarteles.filter((c: any) => c.en_cosecha !== false);
   m.huertos = m.huertos.filter((h: any) => m.cuarteles.some((c: any) => c.huerto_id === h.id));
   // mezclar con lo creado en terreno sin señal
   const tLoc: any[] = (await getCache('trabajadores_locales')) || [];
