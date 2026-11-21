@@ -1,7 +1,7 @@
 // Service worker: guarda la app para que abra sin señal.
 // Páginas: red primero (para tomar versiones nuevas), caché si no hay señal.
 // Archivos estáticos (_next/static) son inmutables: caché primero.
-const VERSION = 'qsecha-v4';
+const VERSION = 'qsecha-v5';
 const PRECACHE = ['/', '/campo/', '/acopio/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/logo.svg'];
 
 self.addEventListener('install', (e) => {

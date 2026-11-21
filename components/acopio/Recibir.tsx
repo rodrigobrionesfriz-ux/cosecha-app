@@ -18,7 +18,7 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
   const [huerto, setHuerto] = useState('');
   const [cuartel, setCuartel] = useState('');
   const [totes, setTotes] = useState('');
-  const cuarteles = m.cuarteles.filter((c) => c.huerto_id === huerto);
+  const cuarteles = m.cuarteles_todos.filter((c) => c.huerto_id === huerto);
 
   const cfg = configDe(m, bin?.servidor?.huerto_id ?? undefined);
   const exige = !!cfg.exige_calidad_recepcion;
@@ -41,8 +41,8 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
     try { ult = JSON.parse(localStorage.getItem('acopio-ultimo-cuartel') || '{}'); } catch {}
     const h0 = b.servidor?.huerto_id || ult.h || '';
     const c0 = b.servidor?.cuartel_id || (h0 === ult.h ? ult.c : '') || '';
-    setHuerto(m.huertos.some((x) => x.id === h0) ? h0 : '');
-    setCuartel(m.cuarteles.some((x) => x.id === c0 && x.huerto_id === h0) ? c0 : '');
+    setHuerto(m.huertos_todos.some((x) => x.id === h0) ? h0 : '');
+    setCuartel(m.cuarteles_todos.some((x) => x.id === c0 && x.huerto_id === h0) ? c0 : '');
     setVerCalidad(exige);
     setMsg(b.servidor ? null : { t: 'av', titulo: 'Sin datos del campo todavía', detalle: 'Indica huerto y cuartel. Cuando el jefe sincronice, se concilia.' });
   }
@@ -55,7 +55,7 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
     const v = validarCalidad(params, valores, exige);
     if (!v.ok) return error('Revisa la calidad', v.error);
     try { localStorage.setItem('acopio-ultimo-cuartel', JSON.stringify({ h: huerto, c: cuartel })); } catch {}
-    const cu = m.cuarteles.find((x) => x.id === cuartel);
+    const cu = m.cuarteles_todos.find((x) => x.id === cuartel);
     await registrarEvento('recibir', bin.codigo, {
       huerto_id: huerto, cuartel_id: cuartel, variedad_id: cu?.variedad_id ?? null, envases: nTotes,
       calidad: v.datos, observacion: obs.trim() || null, fotos: fotos.map((f) => f.nombre),
@@ -79,14 +79,23 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
               <label>Huerto *</label>
               <select value={huerto} onChange={(e) => { setHuerto(e.target.value); setCuartel(''); }}>
                 <option value="">Seleccionar…</option>
-                {m.huertos.map((h) => <option key={h.id} value={h.id}>{h.nombre}</option>)}
+                {m.huertos_todos.map((h) => <option key={h.id} value={h.id}>{h.nombre}</option>)}
               </select>
             </div>
             <div className="campo">
               <label>Cuartel *</label>
               <select value={cuartel} onChange={(e) => setCuartel(e.target.value)} disabled={!huerto}>
                 <option value="">Seleccionar…</option>
-                {cuarteles.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                {cuarteles.filter((c) => c.en_cosecha !== false).length > 0 && (
+                  <optgroup label="En cosecha">
+                    {cuarteles.filter((c) => c.en_cosecha !== false).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </optgroup>
+                )}
+                {cuarteles.some((c) => c.en_cosecha === false) && (
+                  <optgroup label="Otros cuarteles">
+                    {cuarteles.filter((c) => c.en_cosecha === false).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </optgroup>
+                )}
               </select>
             </div>
           </div>

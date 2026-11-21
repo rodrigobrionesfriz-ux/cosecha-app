@@ -154,7 +154,7 @@ export async function descargarMaestros(): Promise<void> {
   for (const t of MAESTROS) {
     let q = supabase.from(t).select('*');
     if (t !== 'config_huerto') q = q.eq('activo', true);
-    if (t === 'cuarteles') q = q.eq('en_cosecha', true);
+    // cuarteles: se bajan todos los activos; campo solo usa los en cosecha, acopio puede recibir de cualquiera
     const { data, error } = await q;
     if (error) throw new Error(`${t}: ${error.message}`);
     await setCache(t, data || []);
@@ -333,7 +333,7 @@ export async function sincronizar(onPaso?: (texto: string) => void) {
   try { actualizadas = await bajarEntregasPropias(); } catch {}
   const largo = async (k: string) => ((await getCache(k)) || []).length;
   const resumen: ResumenDescarga = {
-    huertos: await largo('huertos'), cuarteles: await largo('cuarteles'), contratistas: await largo('contratistas'),
+    huertos: await largo('huertos'), cuarteles: ((await getCache('cuarteles')) || []).filter((c: any) => c.en_cosecha).length, contratistas: await largo('contratistas'),
     trabajadores: await largo('trabajadores'), credenciales: await largo('credenciales'),
   };
   await setCache('resumen_descarga', resumen);

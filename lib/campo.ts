@@ -4,7 +4,7 @@ import { claveOperador } from './equipo';
 import { db, getCache, setCache } from './offline';
 
 export type Maestros = {
-  huertos: any[]; cuarteles: any[]; variedades: any[]; especies: any[]; envases: any[];
+  huertos: any[]; cuarteles: any[]; huertos_todos: any[]; cuarteles_todos: any[]; variedades: any[]; especies: any[]; envases: any[];
   calidades: any[]; turnos: any[]; contratistas: any[]; cuadrillas: any[]; config_huerto: any[];
   trabajadores: any[]; credenciales: { codigo: string; trabajador_id: string }[];
   cajas_servidor: { codigo_caja: string; leido_en: string }[];
@@ -50,7 +50,11 @@ export async function leerMaestros(): Promise<Maestros> {
   const vals = await Promise.all(k.map((x) => getCache(x)));
   const m: any = {};
   k.forEach((x, i) => (m[x] = vals[i] ?? (x === 'ultima_descarga' ? null : [])));
-  // solo huertos con al menos un cuartel habilitado para cosecha
+  // cuarteles_todos: todos los activos (acopio recibe bins de cuarteles ya cerrados);
+  // cuarteles: solo los habilitados para cosecha (lo que ve el jefe en campo)
+  m.cuarteles_todos = m.cuarteles;
+  m.cuarteles = m.cuarteles.filter((c: any) => c.en_cosecha !== false);
+  m.huertos_todos = m.huertos.filter((h: any) => m.cuarteles_todos.some((c: any) => c.huerto_id === h.id));
   m.huertos = m.huertos.filter((h: any) => m.cuarteles.some((c: any) => c.huerto_id === h.id));
   // mezclar con lo creado en terreno sin señal
   const tLoc: any[] = (await getCache('trabajadores_locales')) || [];
