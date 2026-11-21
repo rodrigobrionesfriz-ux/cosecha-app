@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [desde, setDesde] = useState(inicioTemporada(hoy));
   const [huertoId, setHuertoId] = useState('');
   const [especieId, setEspecieId] = useState('');
+  const [variedadId, setVariedadId] = useState('');
   const [filas, setFilas] = useState<Fila[]>([]);
   const [bins, setBins] = useState<any[]>([]);
   const [porConciliar, setPorConciliar] = useState(0);
@@ -53,6 +54,8 @@ export default function Dashboard() {
   const [error, setError] = useState('');
   const huertos = useTabla<any>('huertos', 'id,nombre', 'nombre');
   const especies = useTabla<any>('especies', 'id,nombre', 'nombre');
+  const variedades = useTabla<any>('variedades', 'id,nombre,especie_id', 'nombre');
+  const variedadesF = variedades.filas.filter((v) => !especieId || v.especie_id === especieId);
 
   async function cargar() {
     setCargando(true);
@@ -60,7 +63,7 @@ export default function Dashboard() {
       const ini = vista === 'Diario' ? fecha : desde;
       const [f, b] = await Promise.all([
         cargarEntregas(ini, fecha, huertoId || undefined),
-        cargarTabla<any>('v_bins', 'id,estado,origen,cuadrilla,abierto_por_nombre,huerto_id,especie_id,kilos,minutos_a_acopio', (q) => {
+        cargarTabla<any>('v_bins', 'id,estado,origen,cuadrilla,abierto_por_nombre,huerto_id,especie_id,variedad_id,kilos,minutos_a_acopio', (q) => {
           let r = q.gte('fecha', ini).lte('fecha', fecha).neq('estado', 'anulado');
           if (huertoId) r = r.eq('huerto_id', huertoId);
           return r;
@@ -79,7 +82,7 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, [vista, fecha, desde, huertoId]); // eslint-disable-line
 
-  const delFiltro = filas.filter((f) => !especieId || f.especie_id === especieId);
+  const delFiltro = filas.filter((f) => (!especieId || f.especie_id === especieId) && (!variedadId || f.variedad_id === variedadId));
   const validas = delFiltro.filter((f) => f.estado === 'A');
   const dupl = delFiltro.filter((f) => f.estado === 'D');
 
@@ -127,7 +130,7 @@ export default function Dashboard() {
   const pctContratistas = !r.recargo ? '' : pcts.size === 1 ? `${num([...pcts][0], 1)}%` : baseContr ? `${num((r.recargo / baseContr) * 100, 1)}% prom.` : '';
 
   // Acopio: bins cosechados en campo vs recibidos (como "Acopio y llenado por cuadrilla" de HubCrop)
-  const binsF = bins.filter((b) => !especieId || b.especie_id === especieId || !b.especie_id);
+  const binsF = bins.filter((b) => (!especieId || b.especie_id === especieId || !b.especie_id) && (!variedadId || b.variedad_id === variedadId || !b.variedad_id));
   const recibido = (b: any) => !['abierto', 'cerrado'].includes(b.estado);
   const ac = {
     cosechados: binsF.filter((b) => b.origen === 'campo').length,
@@ -189,9 +192,16 @@ export default function Dashboard() {
         </div>
         <div className="campo">
           <label>Especie</label>
-          <select value={especieId} onChange={(e) => setEspecieId(e.target.value)}>
+          <select value={especieId} onChange={(e) => { setEspecieId(e.target.value); setVariedadId(''); }}>
             <option value="">Todas</option>
             {especies.filas.map((h) => <option key={h.id} value={h.id}>{h.nombre}</option>)}
+          </select>
+        </div>
+        <div className="campo">
+          <label>Variedad</label>
+          <select value={variedadId} onChange={(e) => setVariedadId(e.target.value)}>
+            <option value="">Todas</option>
+            {variedadesF.map((v) => <option key={v.id} value={v.id}>{v.nombre}</option>)}
           </select>
         </div>
       </div>
