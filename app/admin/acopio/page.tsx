@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { cargarTabla, useTabla } from '@/lib/datos';
@@ -300,6 +300,7 @@ function Conciliacion({ esAdmin, onCambio }: { esAdmin: boolean; onCambio: (pend
   const [cargando, setCargando] = useState(true);
   const [trabajando, setTrabajando] = useState('');
   const [error, setError] = useState('');
+  const [abierta, setAbierta] = useState('');
 
   async function cargar() {
     setCargando(true); setError('');
@@ -324,7 +325,9 @@ function Conciliacion({ esAdmin, onCambio }: { esAdmin: boolean; onCambio: (pend
   async function resolver(c: any, opcion: 'campo' | 'acopio' | 'descartar') {
     const txt = opcion === 'acopio'
       ? `Bin ${c.codigo}: se cambia a ${c.acopio_cuartel} el bin y sus ${c.entregas} entrega(s) (${num(c.envases)} envases). Queda registrado en la auditoría. ¿Aplicar?`
-      : opcion === 'campo' ? `Bin ${c.codigo}: se mantiene ${c.campo_cuartel} (dato del jefe). ¿Confirmar?` : `¿Descartar la diferencia del bin ${c.codigo}?`;
+      : opcion === 'campo' ? (c.tipo === 'envases_distinto'
+        ? `Bin ${c.codigo}: se dejan los ${num(c.campo?.envases)} totes registrados en campo (acopio contó ${num(c.acopio?.envases)}). ¿Confirmar?`
+        : `Bin ${c.codigo}: se mantiene ${c.campo_cuartel} (dato del jefe). ¿Confirmar?`) : `¿Descartar la diferencia del bin ${c.codigo}?`;
     if (!confirm(txt)) return;
     setTrabajando(c.id);
     const { data, error } = await supabase.rpc('resolver_conciliacion', { p_id: c.id, p_opcion: opcion });
@@ -369,28 +372,37 @@ function Conciliacion({ esAdmin, onCambio }: { esAdmin: boolean; onCambio: (pend
       </div>
       <div className="tabla-wrap">
         <table>
-          <thead><tr><th>Bin</th><th>Campo (jefe)</th><th>Acopio</th><th className="n">Entregas</th><th className="n">Envases</th><th>Recibido</th><th></th></tr></thead>
+          <thead><tr><th>Bin</th><th>Diferencia</th><th>Campo (jefe)</th><th>Acopio</th><th className="n">Entregas</th><th>Recibido</th><th></th></tr></thead>
           <tbody>
             {!pend.length && !cargando && <tr><td colSpan={7} className="muted">Sin diferencias pendientes. ✔</td></tr>}
-            {pend.map((c) => (
-              <tr key={c.id}>
-                <td className="mono">{c.codigo.slice(-8)}</td>
-                <td><b>{c.campo_cuartel}</b><div className="muted">{c.campo_huerto}{c.jefe ? ` · ${c.jefe}` : ''}</div></td>
-                <td><b>{c.acopio_cuartel}</b><div className="muted">{c.acopio_huerto}{c.recibido_por_nombre ? ` · ${c.recibido_por_nombre}` : ''}</div></td>
-                <td className="n">{c.entregas}</td>
-                <td className="n">{num(c.envases)}</td>
-                <td>{fh(c.recibido_en)}</td>
-                <td>
-                  {esAdmin ? (
-                    <div className="acciones" style={{ flexWrap: 'nowrap' }}>
-                      <button className="chico" disabled={!!trabajando} onClick={() => resolver(c, 'campo')}>Mantener campo</button>
-                      <button className="chico primario" disabled={!!trabajando} onClick={() => resolver(c, 'acopio')}>Usar acopio</button>
-                      <button className="chico" disabled={!!trabajando} onClick={() => resolver(c, 'descartar')}>Descartar</button>
-                    </div>
-                  ) : <span className="muted">Solo administración</span>}
-                </td>
-              </tr>
-            ))}
+            {pend.map((c) => {
+              const env = c.tipo === 'envases_distinto';
+              return (
+                <Fragment key={c.id}>
+                  <tr>
+                    <td className="mono">{c.codigo.slice(-8)}</td>
+                    <td><span className="badge">{env ? 'Cantidad de totes' : 'Cuartel'}</span></td>
+                    <td>{env ? <b>{num(c.campo?.envases)} totes</b> : <><b>{c.campo_cuartel}</b><div className="muted">{c.campo_huerto}</div></>}<div className="muted">{c.jefe ?? ''}</div></td>
+                    <td>{env ? <b>{num(c.acopio?.envases)} totes</b> : <><b>{c.acopio_cuartel}</b><div className="muted">{c.acopio_huerto}</div></>}<div className="muted">{c.recibido_por_nombre ?? ''}</div></td>
+                    <td className="n">{c.entregas}</td>
+                    <td>{fh(c.recibido_en)}</td>
+                    <td>
+                      {esAdmin ? (
+                        <div className="acciones" style={{ flexWrap: 'nowrap' }}>
+                          {env && <button className="chico primario" onClick={() => setAbierta(abierta === c.id ? '' : c.id)}>{abierta === c.id ? 'Ocultar entregas' : 'Ver entregas'}</button>}
+                          <button className="chico" disabled={!!trabajando} onClick={() => resolver(c, 'campo')}>Mantener campo</button>
+                          {!env && <button className="chico primario" disabled={!!trabajando} onClick={() => resolver(c, 'acopio')}>Usar acopio</button>}
+                          <button className="chico" disabled={!!trabajando} onClick={() => resolver(c, 'descartar')}>Descartar</button>
+                        </div>
+                      ) : <span className="muted">Solo administración</span>}
+                    </td>
+                  </tr>
+                  {abierta === c.id && (
+                    <tr><td colSpan={7}><EntregasBin binId={c.bin_id} acopio={Number(c.acopio?.envases)} onCambio={cargar} /></td></tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -421,7 +433,7 @@ function Conciliacion({ esAdmin, onCambio }: { esAdmin: boolean; onCambio: (pend
             <table>
               <thead><tr><th>Bin</th><th>Campo</th><th>Acopio</th><th>Decisión</th><th>Por</th><th>Cuándo</th></tr></thead>
               <tbody>{hist.map((c) => (
-                <tr key={c.id}><td className="mono">{c.codigo.slice(-8)}</td><td>{c.campo_cuartel}</td><td>{c.acopio_cuartel}</td>
+                <tr key={c.id}><td className="mono">{c.codigo.slice(-8)}</td><td>{c.tipo === 'envases_distinto' ? `${num(c.campo?.envases)} totes` : c.campo_cuartel}</td><td>{c.tipo === 'envases_distinto' ? `${num(c.acopio?.envases)} totes` : c.acopio_cuartel}</td>
                   <td>{c.estado === 'acopio' ? 'Se usó acopio' : c.estado === 'campo' ? 'Se mantuvo campo' : 'Descartada'}{c.nota ? <div className="muted">{c.nota}</div> : null}</td>
                   <td>{c.resuelto_por_nombre ?? 'Automático'}</td><td>{fh(c.resuelto_en)}</td></tr>
               ))}</tbody>
@@ -429,6 +441,56 @@ function Conciliacion({ esAdmin, onCambio }: { esAdmin: boolean; onCambio: (pend
           </div>
         </details>
       )}
+    </div>
+  );
+}
+
+/** Entregas de un bin en orden de registro, para anular o ajustar la que sobra o falta */
+function EntregasBin({ binId, acopio, onCambio }: { binId: string; acopio: number; onCambio: () => void }) {
+  const [l, setL] = useState<any[]>([]);
+  async function cargar() {
+    const f = await cargarTabla<any>('entregas', 'id,leido_en,cantidad,estado,editada,t:trabajadores(nombres,apellido_paterno,apellido_materno)', (q) => q.eq('bin_id', binId), 'leido_en');
+    setL(f.map((e) => ({ ...e, trabajador: e.t ? `${e.t.nombres} ${e.t.apellido_paterno ?? ''} ${e.t.apellido_materno ?? ''}`.trim() : '—' })));
+  }
+  useEffect(() => { cargar(); }, [binId]); // eslint-disable-line
+  const total = l.filter((e) => e.estado === 'A').reduce((s, e) => s + Number(e.cantidad), 0);
+
+  async function anular(e: any) {
+    const motivo = prompt(`Anular ${e.cantidad} de ${e.trabajador}. Motivo:`, 'Conciliación con conteo de acopio');
+    if (!motivo) return;
+    const { error } = await supabase.rpc('anular_entrega', { p_id: e.id, p_motivo: motivo });
+    if (error) return alert(error.message);
+    await cargar(); onCambio();
+  }
+  async function ajustar(e: any) {
+    const v = prompt(`Nueva cantidad para ${e.trabajador} (hoy ${e.cantidad}):`, String(e.cantidad));
+    if (v == null) return;
+    const n = Number(v.replace(',', '.'));
+    if (!(n > 0)) return alert('Cantidad inválida');
+    const { error } = await supabase.rpc('editar_entrega', { p_id: e.id, p_cambios: { cantidad: n }, p_motivo: 'Conciliación con conteo de acopio' });
+    if (error) return alert(error.message);
+    await cargar(); onCambio();
+  }
+
+  return (
+    <div style={{ padding: '.4rem 0' }}>
+      <div className="muted" style={{ marginBottom: '.3rem' }}>Campo: <b>{num(total)}</b> · Acopio contó: <b>{num(acopio)}</b>{total !== acopio ? ` · diferencia ${num(total - acopio)}` : ' · ✔ coincide'}</div>
+      <table>
+        <thead><tr><th>#</th><th>Hora</th><th>Trabajador</th><th className="n">Totes</th><th></th></tr></thead>
+        <tbody>
+          {l.map((e, i) => (
+            <tr key={e.id} style={e.estado !== 'A' ? { textDecoration: 'line-through', opacity: .55 } : undefined}>
+              <td className="muted">{i + 1}</td><td>{horaCorta(e.leido_en)}</td><td>{e.trabajador}</td>
+              <td className="n">{num(e.cantidad)}{e.editada ? ' ✎' : ''}</td>
+              <td>{e.estado === 'A' && <div className="acciones" style={{ flexWrap: 'nowrap' }}>
+                <button className="chico" onClick={() => ajustar(e)}>Ajustar</button>
+                <button className="chico peligro" onClick={() => anular(e)}>Anular</button>
+              </div>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted" style={{ fontSize: '.85rem' }}>Al dejar el total igual al conteo de acopio, la diferencia se cierra sola. Cada cambio queda en la auditoría.</p>
     </div>
   );
 }

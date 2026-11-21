@@ -17,6 +17,7 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
   const [manual, setManual] = useState('');
   const [huerto, setHuerto] = useState('');
   const [cuartel, setCuartel] = useState('');
+  const [totes, setTotes] = useState('');
   const cuarteles = m.cuarteles.filter((c) => c.huerto_id === huerto);
 
   const cfg = configDe(m, bin?.servidor?.huerto_id ?? undefined);
@@ -34,7 +35,7 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
       return;
     }
     beep(true); vibrar(60);
-    setBin(b); setValores({}); setObs(''); setFotos([]);
+    setBin(b); setValores({}); setObs(''); setFotos([]); setTotes('');
     // huerto y cuartel: lo que dice el campo si ya sincronizó; si no, el último usado en acopio
     let ult: { h?: string; c?: string } = {};
     try { ult = JSON.parse(localStorage.getItem('acopio-ultimo-cuartel') || '{}'); } catch {}
@@ -49,12 +50,14 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
   async function recibir() {
     if (!bin) return;
     if (!huerto || !cuartel) return error('Falta huerto y cuartel', 'Selecciona de dónde viene el bin antes de grabar.');
+    const nTotes = Number(totes);
+    if (!totes || !(nTotes >= 0) || !Number.isInteger(nTotes)) return error('Falta el conteo', 'Cuenta los totes del bin e ingresa la cantidad.');
     const v = validarCalidad(params, valores, exige);
     if (!v.ok) return error('Revisa la calidad', v.error);
     try { localStorage.setItem('acopio-ultimo-cuartel', JSON.stringify({ h: huerto, c: cuartel })); } catch {}
     const cu = m.cuarteles.find((x) => x.id === cuartel);
     await registrarEvento('recibir', bin.codigo, {
-      huerto_id: huerto, cuartel_id: cuartel, variedad_id: cu?.variedad_id ?? null,
+      huerto_id: huerto, cuartel_id: cuartel, variedad_id: cu?.variedad_id ?? null, envases: nTotes,
       calidad: v.datos, observacion: obs.trim() || null, fotos: fotos.map((f) => f.nombre),
     }, bin.id ?? uuid(), fotos.map(({ nombre, blob }) => ({ nombre, blob })));
     beep(true); vibrar(80); hablar('Recibido');
@@ -66,7 +69,7 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
   if (bin) {
     return (
       <div>
-        <FichaBin b={bin} />
+        <FichaBin b={bin} ocultarEnvases />
         {bin.estado === 'abierto' && <div className="alerta aviso">El bin sigue abierto en campo: al recibirlo queda cerrado.</div>}
         <Resultado msg={msg} />
 
@@ -90,7 +93,14 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
           {bin.servidor?.cuartel_id && cuartel && cuartel !== bin.servidor.cuartel_id && (
             <div className="alerta aviso" style={{ marginBottom: 0 }}>El campo registró este bin en <b>{bin.servidor.cuartel}</b>. Si grabas otro cuartel, administración lo revisa.</div>
           )}
-          {!bin.servidor && <div className="muted" style={{ fontSize: '.85rem' }}>El jefe aún no sincroniza este bin. Al subir sus datos se compara con lo que indiques aquí.</div>}
+          <div className="campo" style={{ marginTop: '.6rem' }}>
+            <label>Totes contados en el bin *</label>
+            <input type="number" inputMode="numeric" min={0} step={1} value={totes} onChange={(e) => setTotes(e.target.value)} style={{ fontSize: '1.4rem', fontWeight: 700 }} />
+          </div>
+          {bin.servidor && totes !== '' && Number(totes) !== Number(bin.servidor.envases) && (
+            <div className="alerta aviso" style={{ marginBottom: 0 }}>El campo registró <b>{Number(bin.servidor.envases)}</b> en este bin. Vuelve a contar; si se mantiene la diferencia, administración la revisa.</div>
+          )}
+          {!bin.servidor && <div className="muted" style={{ fontSize: '.85rem' }}>El jefe aún no sincroniza este bin. Al subir sus datos se compara cuartel y cantidad con lo que indiques aquí.</div>}
         </div>
 
         {params.length > 0 && (
@@ -106,7 +116,7 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
           <input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" />
         </div>
         <Fotos empresaId={perfil.empresa_id} fotos={fotos} setFotos={setFotos} />
-        <button className="primario grande" style={{ marginTop: '.8rem' }} onClick={recibir} disabled={!huerto || !cuartel}>Registrar recepción</button>
+        <button className="primario grande" style={{ marginTop: '.8rem' }} onClick={recibir} disabled={!huerto || !cuartel || totes === ''}>Registrar recepción</button>
         <button className="grande" style={{ marginTop: '.5rem' }} onClick={() => { setBin(null); setMsg(null); }}>Cancelar</button>
       </div>
     );

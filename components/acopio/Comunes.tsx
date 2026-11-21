@@ -16,7 +16,7 @@ export function Resultado({ msg }: { msg: Msg }) {
 }
 
 /** Ficha corta de un bin con lo que se sabe de él */
-export function FichaBin({ b }: { b: BinActual }) {
+export function FichaBin({ b, ocultarEnvases }: { b: BinActual; ocultarEnvases?: boolean }) {
   const s = b.servidor;
   return (
     <div className="tarjeta ficha-bin">
@@ -28,7 +28,7 @@ export function FichaBin({ b }: { b: BinActual }) {
         <div className="muted">
           {[s.huerto, s.cuartel, s.variedad].filter(Boolean).join(' · ')}
           {s.cuadrilla || s.abierto_por_nombre ? <div>Cuadrilla: {s.cuadrilla || s.abierto_por_nombre}</div> : null}
-          {Number(s.envases) > 0 && <div>{num(s.envases)} envases · {num(s.kilos)} kg estimados</div>}
+          {!ocultarEnvases && Number(s.envases) > 0 && <div>{num(s.envases)} envases · {num(s.kilos)} kg estimados</div>}
         </div>
       )}
       {!s && b.estado && <div className="muted">Registrado en este teléfono, aún sin sincronizar.</div>}
