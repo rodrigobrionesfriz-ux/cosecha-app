@@ -56,6 +56,8 @@ export default function ImprimirIngreso() {
           <Dato l="Nombre completo" v={f.nombre_completo} />
           <Dato l="RUT" v={rut} />
           <Dato l="Fecha de nacimiento" v={fechaCorta(f.fecha_nacimiento)} />
+          <Dato l="Sexo" v={f.sexo === 'M' ? 'Masculino' : f.sexo === 'F' ? 'Femenino' : ''} />
+          <Dato l="Nacionalidad" v={f.nacionalidad === 'CHL' ? 'Chilena' : f.nacionalidad} />
           <Dato l="N° documento" v={f.cedula_serie} />
           <Dato l="Dirección particular" v={[f.direccion, f.comuna].filter(Boolean).join(', ')} />
           <Dato l="Fecha de ingreso" v={fechaCorta(f.fecha_ingreso)} />

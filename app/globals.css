@@ -373,3 +373,9 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
   .planilla { border: 0; padding: 0; }
   @page { size: letter; margin: 15mm; }
 }
+.lectura-carnet label.btn-capturar { cursor: pointer; }
+.lectura-carnet .btn-capturar.ocupado { opacity: .8; pointer-events: none; }
+.barra-prog { height: 6px; background: var(--paja-2); border-radius: 99px; overflow: hidden; margin: .5rem 0; }
+.barra-prog > div { height: 100%; background: var(--verde); transition: width .3s; }
+.ayuda-carnet { font-size: .85rem; margin: .5rem 0; }
+.solo-qr summary { cursor: pointer; font-size: .9rem; color: var(--verde-osc); margin: .4rem 0; }

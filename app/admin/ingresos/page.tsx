@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { cargarTabla, errorAmigable, useTabla } from '@/lib/datos';
 import { formatearRut, hoyISO, normalizarRut, rutValido } from '@/lib/util';
 import { leerCedula } from '@/lib/cedula';
+import { leerReverso } from '@/lib/mrz';
 import { celularVisible, excelIngresos, fechaCorta, Ficha, pdfIngresos } from '@/lib/ingresos';
 import CapturaQR from '@/components/CapturaQR';
 
@@ -13,18 +14,19 @@ const PROPIO = 'propio';
 
 type Form = {
   rut: string; extranjero: boolean; nombres: string; apellido_paterno: string; apellido_materno: string;
-  fecha_nacimiento: string; cedula_serie: string; cedula_vencimiento: string; qr_texto: string;
+  fecha_nacimiento: string; sexo: string; nacionalidad: string; mrz_texto: string; cedula_serie: string; cedula_vencimiento: string; qr_texto: string;
   direccion: string; comuna: string; contratista: string; // '' = sin elegir, 'propio' = interno
   contacto_nombre: string; contacto_parentesco: string; celular8: string; fecha_ingreso: string; observacion: string;
 };
 const vacio = (): Form => ({
-  rut: '', extranjero: false, nombres: '', apellido_paterno: '', apellido_materno: '', fecha_nacimiento: '', cedula_serie: '',
+  rut: '', extranjero: false, nombres: '', apellido_paterno: '', apellido_materno: '', fecha_nacimiento: '', sexo: '', nacionalidad: '', mrz_texto: '', cedula_serie: '',
   cedula_vencimiento: '', qr_texto: '', direccion: '', comuna: '', contratista: '', contacto_nombre: '', contacto_parentesco: '',
   celular8: '', fecha_ingreso: hoyISO(), observacion: '',
 });
 const desdeFicha = (f: Ficha): Form => ({
   rut: f.extranjero ? f.rut : formatearRut(f.rut), extranjero: f.extranjero, nombres: f.nombres, apellido_paterno: f.apellido_paterno ?? '',
-  apellido_materno: f.apellido_materno ?? '', fecha_nacimiento: f.fecha_nacimiento ?? '', cedula_serie: f.cedula_serie ?? '',
+  apellido_materno: f.apellido_materno ?? '', fecha_nacimiento: f.fecha_nacimiento ?? '', sexo: f.sexo ?? '', nacionalidad: f.nacionalidad ?? '',
+  mrz_texto: f.mrz_texto ?? '', cedula_serie: f.cedula_serie ?? '',
   cedula_vencimiento: f.cedula_vencimiento ?? '', qr_texto: f.qr_texto ?? '', direccion: f.direccion ?? '', comuna: f.comuna ?? '',
   contratista: f.contratista_id ?? PROPIO, contacto_nombre: f.contacto_nombre ?? '', contacto_parentesco: f.contacto_parentesco ?? '',
   celular8: (f.contacto_celular ?? '').replace(/^\+569/, ''), fecha_ingreso: f.fecha_ingreso, observacion: f.observacion ?? '',
@@ -92,6 +94,37 @@ function Formulario({ inicial, contratistas, onNuevo }: { inicial: Ficha | null;
     return true;
   }
 
+  const [leyendo, setLeyendo] = useState<{ p: number; t: string } | null>(null);
+  async function fotoReverso(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setMsg(null); setLeyendo({ p: 0, t: 'Abriendo foto…' });
+    try {
+      const d = await leerReverso(file, (p, t) => setLeyendo({ p, t }));
+      if (!d.rut && !d.nombres) { setMsg({ t: 'error', m: d.avisos.join(' ') }); return; }
+      const extra: Partial<Form> = {
+        nombres: d.nombres, apellido_paterno: d.apellido_paterno, apellido_materno: d.apellido_materno, sexo: d.sexo ?? '',
+        nacionalidad: d.nacionalidad ?? '', fecha_nacimiento: d.nacimiento ?? '', cedula_serie: d.serie ?? '',
+        cedula_vencimiento: d.vencimiento ?? '', qr_texto: d.qr?.texto ?? '', mrz_texto: d.mrz?.join('\n') ?? '',
+      };
+      const lleno = Object.fromEntries(Object.entries(extra).filter(([, v]) => v));
+      setF((x) => ({ ...x, ...lleno, ...(d.rut ? { rut: formatearRut(d.rut), extranjero: false } : {}) }));
+      setCambios(true);
+      let yaExiste = false;
+      if (d.rut) {
+        // si ya existe, se conserva lo guardado (con tildes y ñ) y se actualiza lo leído del carnet
+        const r0 = normalizarRut(d.rut);
+        const [t] = await cargarTabla<any>('trabajadores', 'id', (q) => q.eq('rut', r0));
+        yaExiste = !!t;
+        if (t) await buscarExistente(d.rut, Object.fromEntries(Object.entries(extra).filter(([k, v]) => v && !['nombres', 'apellido_paterno', 'apellido_materno'].includes(k))) as Partial<Form>);
+      }
+      setMsg({ t: d.verificado ? 'ok' : 'aviso', m: (d.verificado ? 'Carnet leído y verificado. ' : '') + (yaExiste ? 'Trabajador ya registrado: se mantienen sus nombres guardados; revisa su ficha. ' : d.avisos.join(' ')) + (d.rut ? '' : ' No se pudo leer el RUT: escríbelo.') });
+    } catch (err: any) {
+      setMsg({ t: 'error', m: 'No se pudo leer la foto: ' + (err?.message || err) });
+    } finally { setLeyendo(null); }
+  }
+
   async function guardar(e?: React.FormEvent) {
     e?.preventDefault();
     if (!rutOk) return setMsg({ t: 'error', m: 'RUT inválido.' });
@@ -105,7 +138,7 @@ function Formulario({ inicial, contratistas, onNuevo }: { inicial: Ficha | null;
       p: {
         rut: f.extranjero ? f.rut.trim().toUpperCase() : normalizarRut(f.rut), extranjero: f.extranjero,
         nombres: f.nombres, apellido_paterno: f.apellido_paterno, apellido_materno: f.apellido_materno,
-        fecha_nacimiento: f.fecha_nacimiento, cedula_serie: f.cedula_serie, cedula_vencimiento: f.cedula_vencimiento, qr_texto: f.qr_texto,
+        fecha_nacimiento: f.fecha_nacimiento, sexo: f.sexo, nacionalidad: f.nacionalidad, mrz_texto: f.mrz_texto, cedula_serie: f.cedula_serie, cedula_vencimiento: f.cedula_vencimiento, qr_texto: f.qr_texto,
         direccion: f.direccion, comuna: f.comuna, contratista_id: f.contratista === PROPIO ? null : f.contratista,
         contacto_nombre: f.contacto_nombre, contacto_parentesco: f.contacto_parentesco, contacto_celular: '+569' + f.celular8,
         fecha_ingreso: f.fecha_ingreso, observacion: f.observacion,
@@ -123,7 +156,24 @@ function Formulario({ inicial, contratistas, onNuevo }: { inicial: Ficha | null;
     <form onSubmit={guardar} className="ingreso">
       <section className="tarjeta">
         <h3 style={{ marginTop: 0 }}>1. Carnet de identidad</h3>
-        {!inicial && <CapturaQR etiqueta="Escanear QR del carnet" ayuda="Apunta al QR del reverso del carnet" onScan={alLeer} alto={260} />}
+        {!inicial && (
+          <div className="lectura-carnet">
+            <label className={`btn-capturar ${leyendo ? 'ocupado' : ''}`}>
+              <span className="ico">🪪</span>
+              <span>{leyendo ? `${leyendo.t} ${leyendo.p}%` : 'Fotografiar reverso del carnet'}</span>
+              <input type="file" accept="image/*" capture="environment" onChange={fotoReverso} disabled={!!leyendo} hidden />
+            </label>
+            {leyendo && <div className="barra-prog"><div style={{ width: `${leyendo.p}%` }} /></div>}
+            <div className="muted ayuda-carnet">
+              Carnet horizontal, de frente, con buena luz y sin reflejos. Que se lean nítidas las 3 líneas con &lt;&lt;&lt; de abajo.
+              Lee nombre completo, RUT, nacimiento, sexo, N° de documento y vencimiento. La primera vez tarda un poco más (descarga el lector).
+            </div>
+            <details className="solo-qr">
+              <summary>Leer solo el QR (RUT y fechas, sin nombres)</summary>
+              <CapturaQR etiqueta="Escanear QR del carnet" ayuda="Apunta al QR del reverso del carnet" onScan={alLeer} alto={260} />
+            </details>
+          </div>
+        )}
         <div className="fila" style={{ marginTop: '.8rem' }}>
           <div className="campo">
             <label>RUT *</label>
@@ -143,6 +193,11 @@ function Formulario({ inicial, contratistas, onNuevo }: { inicial: Ficha | null;
         </div>
         <div className="fila">
           <div className="campo"><label>Fecha de nacimiento</label><input type="date" value={f.fecha_nacimiento} onChange={(e) => set('fecha_nacimiento', e.target.value)} /></div>
+          <div className="campo" style={{ flex: '0 1 130px' }}>
+            <label>Sexo</label>
+            <select value={f.sexo} onChange={(e) => set('sexo', e.target.value)}><option value="">—</option><option value="M">Masculino</option><option value="F">Femenino</option></select>
+          </div>
+          <div className="campo" style={{ flex: '0 1 130px' }}><label>Nacionalidad</label><input value={f.nacionalidad} onChange={(e) => set('nacionalidad', e.target.value.toUpperCase())} placeholder="CHL" maxLength={3} /></div>
           <div className="campo">
             <label>Vencimiento del carnet</label><input type="date" value={f.cedula_vencimiento} onChange={(e) => set('cedula_vencimiento', e.target.value)} />
             {vencido && <small className="txt-err">Carnet vencido</small>}

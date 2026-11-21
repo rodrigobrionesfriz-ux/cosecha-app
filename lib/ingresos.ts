@@ -3,7 +3,7 @@ import { formatearRut } from './util';
 export type Ficha = {
   id: string; trabajador_id: string; rut: string; extranjero: boolean; nombres: string; apellido_paterno: string | null; apellido_materno: string | null;
   nombre_completo: string; contratista_id: string | null; contratista: string; contratista_rut: string | null; estado: string;
-  fecha_ingreso: string; fecha_nacimiento: string | null; cedula_serie: string | null; cedula_vencimiento: string | null; qr_texto: string | null;
+  fecha_ingreso: string; fecha_nacimiento: string | null; sexo: string | null; nacionalidad: string | null; mrz_texto: string | null; cedula_serie: string | null; cedula_vencimiento: string | null; qr_texto: string | null;
   direccion: string | null; comuna: string | null; contacto_nombre: string | null; contacto_parentesco: string | null; contacto_celular: string | null;
   observacion: string | null; registrado_por_nombre: string | null; created_at: string;
 };
@@ -17,6 +17,7 @@ export const COLUMNAS: { t: string; v: (f: Ficha) => string; w: number }[] = [
   { t: 'RUT', v: (f) => (f.extranjero ? f.rut : formatearRut(f.rut)), w: 22 },
   { t: 'Nombre', v: (f) => f.nombre_completo, w: 48 },
   { t: 'Nacimiento', v: (f) => fechaCorta(f.fecha_nacimiento), w: 20 },
+  { t: 'Sexo', v: (f) => f.sexo || '', w: 9 },
   { t: 'N° documento', v: (f) => f.cedula_serie || '', w: 22 },
   { t: 'Vence carnet', v: (f) => fechaCorta(f.cedula_vencimiento), w: 20 },
   { t: 'Dirección', v: (f) => [f.direccion, f.comuna].filter(Boolean).join(', '), w: 52 },
