@@ -43,6 +43,7 @@ export type AsignacionLocal = {
   apellido_paterno?: string;
   apellido_materno?: string;
   contratista_id?: string | null;
+  actualiza_contratista?: boolean; // trabajador existente al que se le cambió el contratista
   extranjero?: boolean;
   forzar?: boolean;
   creado_en: string;
@@ -199,6 +200,7 @@ export async function subirPendientes(): Promise<{ entregas: number; asignacione
       p_id: a.id, p_codigo: a.codigo, p_rut: a.rut, p_nombres: a.nombres || null,
       p_apellido_paterno: a.apellido_paterno || null, p_apellido_materno: a.apellido_materno || null,
       p_contratista_id: a.contratista_id || null, p_extranjero: !!a.extranjero, p_forzar: !!a.forzar,
+      ...(a.actualiza_contratista ? { p_actualiza_contratista: true } : {}),
     });
     if (error) { errores.push(`Credencial ${a.codigo}: ${error.message}`); continue; }
     await db.asignaciones.update(a.id, { sync: 1, resultado: (data as any)?.resultado });

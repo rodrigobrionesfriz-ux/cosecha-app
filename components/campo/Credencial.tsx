@@ -7,6 +7,26 @@ import { beep, formatearRut, normalizarCodigo, normalizarRut, rutDesdeQR, rutVal
 
 type Paso = 'rut' | 'datos' | 'credencial' | 'listo';
 
+const PROPIO = 'propio';
+
+/** ¿Para quién trabaja? Propio (interno) o uno de los contratistas */
+function SelectorContratista({ m, valor, onChange }: { m: Maestros; valor: string; onChange: (v: string) => void }) {
+  const opciones = [{ id: PROPIO, nombre: 'Propio / interno' }, ...m.contratistas.map((c) => ({ id: c.id, nombre: c.nombre }))];
+  return (
+    <div className="campo">
+      <label>¿Para quién trabaja? *</label>
+      <div className="opciones-lista">
+        {opciones.map((o) => (
+          <button type="button" key={o.id} className={valor === o.id ? 'activo' : ''} onClick={() => onChange(o.id)}>
+            {valor === o.id ? '● ' : '○ '}{o.nombre}
+          </button>
+        ))}
+      </div>
+      {!m.contratistas.length && <div className="muted" style={{ fontSize: '.85rem', marginTop: '.3rem' }}>No hay contratistas creados. Administración los agrega en Huertos y maestros.</div>}
+    </div>
+  );
+}
+
 export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }: {
   m: Maestros; cfg: Config; prefill: string; limpiarPrefill: () => void; onCambio: () => void;
 }) {
@@ -14,16 +34,17 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
   const [rut, setRut] = useState('');
   const [extranjero, setExtranjero] = useState(false);
   const [trab, setTrab] = useState<any | null>(null);
-  const [datos, setDatos] = useState({ nombres: '', apellido_paterno: '', apellido_materno: '', contratista_id: '' });
+  const [datos, setDatos] = useState({ nombres: '', apellido_paterno: '', apellido_materno: '' });
   const [codigo, setCodigo] = useState('');
+  const [contr, setContr] = useState(''); // PROPIO o id de contratista; '' = sin elegir
   const [aviso, setAviso] = useState<{ t: string; m: string; forzable?: boolean } | null>(null);
 
   useEffect(() => { if (prefill) setCodigo(prefill); }, [prefill]);
 
   function reiniciar() {
     setPaso('rut'); setRut(''); setTrab(null); setExtranjero(false);
-    setDatos({ nombres: '', apellido_paterno: '', apellido_materno: '', contratista_id: '' });
-    setCodigo(''); setAviso(null); limpiarPrefill();
+    setDatos({ nombres: '', apellido_paterno: '', apellido_materno: '' });
+    setCodigo(''); setAviso(null); setContr(''); limpiarPrefill();
   }
 
   function usarRut(valor: string) {
@@ -34,10 +55,12 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
     beep(true); vibrar(60);
     if (t) {
       setTrab(t);
+      setContr(t.contratista_id || PROPIO);
       if (t.estado === 'B') { setAviso({ t: 'error', m: 'Trabajador bloqueado. Enviar a administración.' }); return; }
       setPaso(prefill ? 'credencial' : 'credencial');
     } else {
       setTrab(null);
+      setContr(m.contratistas.length ? '' : PROPIO);
       setPaso('datos');
     }
   }
@@ -51,10 +74,13 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
   async function asignar(cod: string, forzar = false) {
     const c = normalizarCodigo(cod);
     if (tipoCodigo(c) !== 'W') { setAviso({ t: 'error', m: 'Ese código no es una credencial de trabajador.' }); beep(false); vibrar([200, 100, 200]); return; }
-    const trabajador = trab || {
+    if (!contr) { setAviso({ t: 'error', m: 'Elige si es trabajador propio o de un contratista.' }); beep(false); return; }
+    const contratistaId = contr === PROPIO ? null : contr;
+    const cambiaContr = !!trab && (trab.contratista_id ?? null) !== contratistaId;
+    const trabajador = trab ? { ...trab, contratista_id: contratistaId } : {
       id: 'local:' + rut, rut, extranjero, estado: 'A',
       nombres: datos.nombres.trim(), apellido_paterno: datos.apellido_paterno.trim() || null,
-      apellido_materno: datos.apellido_materno.trim() || null, contratista_id: datos.contratista_id || null,
+      apellido_materno: datos.apellido_materno.trim() || null, contratista_id: contratistaId,
     };
     // validaciones locales (el servidor vuelve a validar al sincronizar)
     const enUso = m.credenciales.find((x) => x.codigo === c);
@@ -74,8 +100,8 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
     }
     await db.asignaciones.add({
       id: uuid(), codigo: c, rut, nombres: trabajador.nombres, apellido_paterno: trabajador.apellido_paterno || undefined,
-      apellido_materno: trabajador.apellido_materno || undefined, contratista_id: trabajador.contratista_id || null,
-      extranjero, forzar, creado_en: new Date().toISOString(), usuario: usuarioActual(), sync: 0,
+      apellido_materno: trabajador.apellido_materno || undefined, contratista_id: contratistaId,
+      actualiza_contratista: cambiaContr, extranjero, forzar, creado_en: new Date().toISOString(), usuario: usuarioActual(), sync: 0,
     });
     await registrarAsignacionLocal(c, trabajador);
     setCodigo(c);
@@ -116,16 +142,8 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
           <div className="campo"><label>Nombres *</label><input value={datos.nombres} onChange={(e) => setDatos({ ...datos, nombres: e.target.value })} autoFocus /></div>
           <div className="campo"><label>Apellido paterno *</label><input value={datos.apellido_paterno} onChange={(e) => setDatos({ ...datos, apellido_paterno: e.target.value })} /></div>
           <div className="campo"><label>Apellido materno</label><input value={datos.apellido_materno} onChange={(e) => setDatos({ ...datos, apellido_materno: e.target.value })} /></div>
-          {m.contratistas.length > 0 && (
-            <div className="campo">
-              <label>Contratista</label>
-              <select value={datos.contratista_id} onChange={(e) => setDatos({ ...datos, contratista_id: e.target.value })}>
-                <option value="">Directo</option>
-                {m.contratistas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
-            </div>
-          )}
-          <button className="primario grande" disabled={!datos.nombres.trim() || !datos.apellido_paterno.trim()} onClick={() => setPaso('credencial')}>Siguiente</button>
+          <SelectorContratista m={m} valor={contr} onChange={setContr} />
+          <button className="primario grande" disabled={!datos.nombres.trim() || !datos.apellido_paterno.trim() || !contr} onClick={() => setPaso('credencial')}>Siguiente</button>
           <button className="grande" style={{ marginTop: '.5rem' }} onClick={reiniciar}>Cancelar</button>
         </>
       )}
@@ -135,7 +153,10 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
           <div className="resultado ok">
             <div className="nombre">{trab ? nombreTrabajador(trab) : `${datos.nombres} ${datos.apellido_paterno}`}</div>
             <div>{extranjero ? rut : formatearRut(rut)}</div>
+            <div className="muted">{contr === PROPIO ? 'Propio / interno' : m.contratistas.find((c) => c.id === contr)?.nombre ?? ''}</div>
           </div>
+          {trab && <SelectorContratista m={m} valor={contr} onChange={setContr} />}
+          {trab && contr && (trab.contratista_id || PROPIO) !== contr && <div className="alerta aviso">Se cambiará el contratista de este trabajador.</div>}
           <p className="muted">2. Lee la credencial QR que le vas a entregar.</p>
           {!aviso?.forzable && <CapturaQR etiqueta="Capturar credencial" onScan={(t) => asignar(t)} />}
           {!aviso?.forzable && (
@@ -159,6 +180,7 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
           <div className="resultado ok">
             <div className="nombre">✔ Credencial asignada</div>
             <div>{nombreTrabajador(trab)}</div>
+            <div>{trab?.contratista_id ? m.contratistas.find((c) => c.id === trab.contratista_id)?.nombre : 'Propio / interno'}</div>
             <div className="mono" style={{ fontSize: '.85rem' }}>{codigo}</div>
           </div>
           <p className="muted">Ya puede entregar. Se confirma con el servidor al sincronizar.</p>

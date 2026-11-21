@@ -75,6 +75,15 @@ function resolverId(id: string, trabajadores: any[]): string {
 }
 
 export async function registrarAsignacionLocal(codigo: string, trabajador: any) {
+  // trabajador existente con contratista cambiado: se refleja altiro en el teléfono
+  if (!String(trabajador.id).startsWith('local:')) {
+    const ts: any[] = (await getCache('trabajadores')) || [];
+    const i = ts.findIndex((t) => t.id === trabajador.id);
+    if (i >= 0 && (ts[i].contratista_id ?? null) !== (trabajador.contratista_id ?? null)) {
+      ts[i] = { ...ts[i], contratista_id: trabajador.contratista_id ?? null };
+      await setCache('trabajadores', ts);
+    }
+  }
   const tLoc: any[] = (await getCache('trabajadores_locales')) || [];
   if (String(trabajador.id).startsWith('local:') && !tLoc.some((t) => t.rut === trabajador.rut)) {
     tLoc.push(trabajador);

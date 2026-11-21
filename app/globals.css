@@ -322,3 +322,6 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
 .pasos span { flex: 1; text-align: center; padding: .35rem .2rem; border-radius: 6px; background: var(--paja-2); color: var(--gris); }
 .pasos .hecho { background: var(--verde-claro); color: var(--verde-osc); }
 .pasos .actual { background: var(--cereza); color: #fff; font-weight: 600; }
+.opciones-lista { display: flex; flex-direction: column; gap: .4rem; }
+.opciones-lista button { text-align: left; padding: .75rem .9rem; font-size: 1.02rem; background: var(--blanco); }
+.opciones-lista button.activo { border-color: var(--verde); background: var(--verde-claro); font-weight: 600; }
