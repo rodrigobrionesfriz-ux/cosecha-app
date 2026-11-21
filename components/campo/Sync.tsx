@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { db, idDispositivo, usuarioActual } from '@/lib/offline';
 import { useAuth } from '@/lib/auth';
-import { equipoLocal, fijarOperador, olvidarEquipo, operadorActual } from '@/lib/equipo';
+import { equipoLocal, fijarOperador, olvidarEquipo, operadorActual, verificarAdmin } from '@/lib/equipo';
 import { horaCorta } from '@/lib/util';
 
 const RESULTADOS: Record<string, string> = {
@@ -74,15 +74,8 @@ export default function Sync({ online, pendientes, sincronizando, ultimo, ultima
             location.reload();
           }}>Cerrar sesión de {operadorActual()?.nombre ?? 'jefe'}</button>
           <details style={{ marginTop: '.8rem' }}>
-            <summary className="muted" style={{ fontSize: '.85rem' }}>Desvincular este teléfono</summary>
-            <p className="muted" style={{ fontSize: '.85rem' }}>Borra el registro del equipo en este teléfono. Para volver a usarlo habrá que registrarlo otra vez y que administración lo apruebe.</p>
-            <button className="chico peligro" onClick={async () => {
-              if (pendientes) { alert(`Hay ${pendientes} registro(s) sin subir. Sincroniza antes de desvincular.`); return; }
-              if (prompt('Escribe DESVINCULAR para confirmar') !== 'DESVINCULAR') return;
-              fijarOperador(null);
-              olvidarEquipo();
-              await salir();
-            }}>Desvincular equipo</button>
+            <summary className="muted" style={{ fontSize: '.85rem' }}>Desvincular este teléfono (administración)</summary>
+            <DesvincularEquipo pendientes={pendientes} empresaId={perfil.empresa_id} onListo={async () => { fijarOperador(null); olvidarEquipo(); await salir(); }} />
           </details>
         </div>
       ) : (
@@ -97,5 +90,33 @@ export default function Sync({ online, pendientes, sincronizando, ultimo, ultima
         </div>
       )}
     </div>
+  );
+}
+
+/** Solo un administrador (con su correo y clave) puede desvincular un equipo */
+function DesvincularEquipo({ pendientes, empresaId, onListo }: { pendientes: number; empresaId: string; onListo: () => Promise<void> }) {
+  const [email, setEmail] = useState('');
+  const [clave, setClave] = useState('');
+  const [error, setError] = useState('');
+  const [verificando, setVerificando] = useState(false);
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    if (pendientes) { setError(`Hay ${pendientes} registro(s) sin subir. Sincroniza antes de desvincular.`); return; }
+    setVerificando(true); setError('');
+    const err = await verificarAdmin(email, clave, empresaId);
+    setVerificando(false);
+    setClave('');
+    if (err) { setError(err); return; }
+    if (!confirm('Clave correcta. ¿Desvincular este teléfono? Para usarlo de nuevo habrá que registrarlo y aprobarlo.')) return;
+    await onListo();
+  }
+  return (
+    <form onSubmit={enviar} style={{ marginTop: '.5rem' }}>
+      <p className="muted" style={{ fontSize: '.85rem', marginTop: 0 }}>Requiere el correo y la clave de un administrador. Para volver a usar el teléfono habrá que registrarlo y aprobarlo de nuevo.</p>
+      <div className="campo"><label>Correo de administrador</label><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" /></div>
+      <div className="campo"><label>Clave</label><input type="password" required value={clave} onChange={(e) => setClave(e.target.value)} autoComplete="off" /></div>
+      {error && <div className="alerta error">{error}</div>}
+      <button className="chico peligro" disabled={verificando}>{verificando ? 'Verificando…' : 'Desvincular equipo'}</button>
+    </form>
   );
 }

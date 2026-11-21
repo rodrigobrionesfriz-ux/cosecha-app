@@ -81,3 +81,16 @@ export async function pinCorrecto(op: { pin_sal?: string | null; pin_hash?: stri
   const hex = Array.from(new Uint8Array(buf), (x) => x.toString(16).padStart(2, '0')).join('');
   return hex === op.pin_hash;
 }
+
+/** Verifica en línea que el correo y clave sean de un administrador activo de la empresa (sin cambiar la sesión del equipo) */
+export async function verificarAdmin(email: string, clave: string, empresaId: string): Promise<string | null> {
+  if (!navigator.onLine) return 'Se necesita señal para verificar la clave de administrador.';
+  const { createClient } = await import('@supabase/supabase-js');
+  const tmp = createClient(URL_SB, ANON, { auth: { persistSession: false, autoRefreshToken: false, storageKey: 'qsecha-verif-admin' } });
+  const { data, error } = await tmp.auth.signInWithPassword({ email: email.trim(), password: clave });
+  if (error || !data.user) return 'Correo o clave incorrectos.';
+  const { data: p } = await tmp.from('perfiles').select('rol,activo,empresa_id').eq('user_id', data.user.id).maybeSingle();
+  await tmp.auth.signOut({ scope: 'local' });
+  if (!p || !p.activo || p.rol !== 'admin' || p.empresa_id !== empresaId) return 'Ese usuario no es administrador de esta empresa.';
+  return null;
+}
