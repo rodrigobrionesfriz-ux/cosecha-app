@@ -27,7 +27,7 @@ function acumular(filas: Fila[], clave: (f: Fila) => string, etiqueta: (f: Fila)
     if (!a) { a = { clave: k, etiqueta: etiqueta(f), envases: 0, kilos: 0, trab: new Set(), monto: 0 }; m.set(k, a); }
     a.envases += Number(f.cantidad);
     a.kilos += Number(f.kilos_estimados);
-    a.monto += Number(f.monto_total ?? f.monto);
+    a.monto += Number(f.monto || 0); // pago al trabajador (sin recargo de contratista)
     a.trab.add(f.trabajador_id);
   }
   return [...m.values()];
@@ -87,6 +87,18 @@ export default function Dashboard() {
     const envases = validas.reduce((s, f) => s + Number(f.cantidad), 0);
     const kilos = validas.reduce((s, f) => s + Number(f.kilos_estimados), 0);
     const pago = validas.reduce((s, f) => s + Number(f.monto_total ?? f.monto), 0);
+    const pagoTrab = validas.reduce((s, f) => s + Number(f.monto || 0), 0);
+    const recargo = validas.reduce((s, f) => s + Number(f.monto_recargo || 0), 0);
+    // por contratista: base (pago a sus trabajadores), recargo y porcentajes aplicados
+    const mc = new Map<string, { nombre: string; base: number; recargo: number; pcts: Set<number> }>();
+    for (const f of validas) {
+      if (!f.contratista_id) continue;
+      const c = mc.get(f.contratista_id) || { nombre: f.contratista || 'Contratista', base: 0, recargo: 0, pcts: new Set<number>() };
+      c.base += Number(f.monto || 0); c.recargo += Number(f.monto_recargo || 0);
+      if (Number(f.porcentaje_contratista)) c.pcts.add(Number(f.porcentaje_contratista));
+      mc.set(f.contratista_id, c);
+    }
+    const contratistas = [...mc.values()].sort((a, b) => b.recargo - a.recargo);
     const trabajadores = new Set(validas.map((f) => f.trabajador_id)).size;
     const jornadas = new Set(validas.map((f) => f.trabajador_id + f.fecha)).size; // trabajador-día
     const dias = new Set(validas.map((f) => f.fecha)).size;
@@ -105,10 +117,14 @@ export default function Dashboard() {
     const porDia = acumular(validas, (f) => f.fecha, (f) => f.fecha.slice(8, 10) + '/' + f.fecha.slice(5, 7))
       .sort((a, b) => a.clave.localeCompare(b.clave));
 
-    return { envases, kilos, pago, trabajadores, jornadas, dias, porCuadrilla, porCuartel, porVariedad, porTrab, horas, porDia };
+    return { envases, kilos, pago, pagoTrab, recargo, contratistas, trabajadores, jornadas, dias, porCuadrilla, porCuartel, porVariedad, porTrab, horas, porDia };
   }, [delFiltro]); // eslint-disable-line
 
   const rendimiento = r.jornadas ? r.kilos / r.jornadas : 0;
+  // % de contratistas: uno solo si todos usan el mismo; si no, el efectivo sobre lo pagado a sus trabajadores
+  const pcts = new Set(r.contratistas.flatMap((c) => [...c.pcts]));
+  const baseContr = r.contratistas.reduce((a, c) => a + c.base, 0);
+  const pctContratistas = !r.recargo ? '' : pcts.size === 1 ? `${num([...pcts][0], 1)}%` : baseContr ? `${num((r.recargo / baseContr) * 100, 1)}% prom.` : '';
 
   // Acopio: bins cosechados en campo vs recibidos (como "Acopio y llenado por cuadrilla" de HubCrop)
   const binsF = bins.filter((b) => !especieId || b.especie_id === especieId || !b.especie_id);
@@ -203,7 +219,12 @@ export default function Dashboard() {
         <div className="kpi"><div className="v">{num(r.envases)}</div><div className="l">Envases</div></div>
         <div className="kpi"><div className="v">{num(r.trabajadores)}</div><div className="l">Trabajadores</div></div>
         <div className="kpi"><div className="v">{num(rendimiento, 1)}</div><div className="l">Kg por trabajador{diario ? '' : ' al día'}</div></div>
-        <div className="kpi"><div className="v">${num(r.pago)}</div><div className="l">Total a pagar</div></div>
+        <div className="kpi"><div className="v">${num(r.pagoTrab)}</div><div className="l">A pagar a trabajadores</div></div>
+        <div className="kpi" title={r.contratistas.map((c) => `${c.nombre}: ${[...c.pcts].join(' / ') || 0}% sobre $${num(c.base)} = $${num(c.recargo)}`).join('\n')}>
+          <div className="v">${num(r.recargo)}</div>
+          <div className="l">A pagar a contratistas{pctContratistas ? ` · ${pctContratistas}` : ''}</div>
+        </div>
+        <div className="kpi kpi-total"><div className="v">${num(r.pago)}</div><div className="l">Total a pagar</div></div>
         {diario
           ? <div className="kpi"><div className="v">{ultima ? horaCorta(ultima.leido_en) : '—'}</div><div className="l">Última lectura</div></div>
           : <div className="kpi"><div className="v">{r.dias}</div><div className="l">Días con cosecha</div></div>}
@@ -271,10 +292,26 @@ export default function Dashboard() {
         </>
       )}
 
+      {r.contratistas.length > 0 && (
+        <>
+          <h2>Pago a contratistas</h2>
+          <div className="tabla-wrap" style={{ marginBottom: '1rem' }}>
+            <table>
+              <thead><tr><th>Contratista</th><th className="n">% asignado</th><th className="n">Pago a sus trabajadores</th><th className="n">A pagar al contratista</th><th className="n">Total</th></tr></thead>
+              <tbody>
+                {r.contratistas.map((c) => (
+                  <tr key={c.nombre}><td>{c.nombre}</td><td className="n">{[...c.pcts].map((p) => num(p, 1) + '%').join(' / ') || '0%'}</td><td className="n">${num(c.base)}</td><td className="n"><b>${num(c.recargo)}</b></td><td className="n">${num(c.base + c.recargo)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
       <h2>Trabajadores</h2>
       <div className="tabla-wrap" style={{ maxHeight: 520, overflowY: 'auto' }}>
         <table>
-          <thead><tr><th>#</th><th>Trabajador</th><th className="n">Envases</th><th className="n">Kilos</th><th className="n">$</th></tr></thead>
+          <thead><tr><th>#</th><th>Trabajador</th><th className="n">Envases</th><th className="n">Kilos</th><th className="n">A pagar</th></tr></thead>
           <tbody>
             {!r.porTrab.length && <tr><td colSpan={5} className="muted">Sin entregas.</td></tr>}
             {r.porTrab.map((a, i) => <tr key={a.clave}><td className="muted">{i + 1}</td><td>{a.etiqueta}</td><td className="n">{num(a.envases)}</td><td className="n">{num(a.kilos)}</td><td className="n">{num(a.monto)}</td></tr>)}

@@ -339,3 +339,5 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
 .pin-teclado { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; }
 .pin-teclado button { font-size: 1.6rem; padding: .8rem 0; border-radius: 12px; background: var(--blanco); }
 .pin-teclado button:active { background: var(--verde-claro); }
+.kpi-total { background: var(--verde-claro); border-color: var(--verde); }
+.kpi-total .v { color: var(--verde-osc); }
