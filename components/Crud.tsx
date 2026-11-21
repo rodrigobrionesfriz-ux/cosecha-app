@@ -22,10 +22,11 @@ type Props = {
   orden?: string;
   ayuda?: string;
   onGuardado?: () => void;
+  calculadas?: { t: string; fn: (fila: any) => string }[]; // columnas de solo lectura derivadas de la fila
 };
 
 /** Mantenedor genérico: lista + formulario de alta/edición */
-export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda, onGuardado }: Props) {
+export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda, onGuardado, calculadas = [] }: Props) {
   const { perfil } = useAuth();
   const { filas, cargando, error, recargar, setFilas } = useTabla<any>(tabla, '*', orden);
   const [edit, setEdit] = useState<any | null>(null);
@@ -134,6 +135,11 @@ export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda, o
               </div>
             )}
           </div>
+          {calculadas.length > 0 && (
+            <p className="muted" style={{ margin: '.25rem 0 .5rem' }}>
+              {calculadas.map((c) => `${c.t}: ${c.fn(edit)}`).join(' · ')}
+            </p>
+          )}
           {msg && <div className="alerta error">{msg}</div>}
           <div className="acciones">
             <button className="primario">Guardar</button>
@@ -147,6 +153,7 @@ export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda, o
           <thead>
             <tr>
               {campos.map((c) => <th key={c.k} className={c.tipo === 'number' ? 'n' : ''}>{c.t}</th>)}
+              {calculadas.map((c) => <th key={c.t} className="n">{c.t}</th>)}
               {filas[0] && 'activo' in filas[0] && !campos.some((c) => c.k === 'activo') && <th>Estado</th>}
               {esAdmin && <th></th>}
             </tr>
@@ -167,6 +174,7 @@ export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda, o
                     ) : mostrar(c, f[c.k])}
                   </td>
                 ))}
+                {calculadas.map((c) => <td key={c.t} className="n">{c.fn(f)}</td>)}
                 {'activo' in f && !campos.some((c) => c.k === 'activo') && (
                   <td>{f.activo ? <span className="badge ok">Activo</span> : <span className="badge">Inactivo</span>}</td>
                 )}

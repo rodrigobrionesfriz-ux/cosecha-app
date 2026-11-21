@@ -23,6 +23,8 @@ const DEF = {
   exige_calidad_recepcion: false,
 };
 
+const pesos = (n: number) => '$' + n.toLocaleString('es-CL');
+
 export default function Config() {
   const { perfil } = useAuth();
   const huertos = useTabla<any>('huertos', 'id,nombre', 'orden');
@@ -144,7 +146,11 @@ export default function Config() {
       )}
 
       <Crud tabla="tarifas" titulo="Tarifas de pago por envase" orden="vigente_desde"
-        ayuda="Pago al cosechero por envase, más el % de recargo que se paga al contratista (solo trabajadores con contratista). Si una tarifa no tiene calidad, aplica a todas. Se usa la tarifa vigente más reciente a la fecha de la entrega."
+        ayuda="Ingresa lo que recibe el cosechero por envase (ej. $1.800). El % de recargo se calcula sobre ese valor y se paga al contratista (ej. 65% de $1.800 = $1.170), solo para trabajadores con contratista. Si una tarifa no tiene calidad, aplica a todas. Se usa la tarifa vigente más reciente a la fecha de la entrega."
+        calculadas={[
+          { t: 'Contratista $/envase', fn: (f) => pesos(Math.round((Number(f.valor) || 0) * (Number(f.porcentaje_contratista) || 0) / 100)) },
+          { t: 'Total $/envase', fn: (f) => pesos(Math.round((Number(f.valor) || 0) * (1 + (Number(f.porcentaje_contratista) || 0) / 100))) },
+        ]}
         campos={[
           { k: 'envase_id', t: 'Envase', tipo: 'select', opciones: op(envases.filas), req: true },
           { k: 'calidad_id', t: 'Calidad', tipo: 'select', opciones: op(calidades.filas) },
