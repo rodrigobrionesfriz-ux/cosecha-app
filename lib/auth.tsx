@@ -8,7 +8,7 @@ export type Perfil = {
   empresa_id: string;
   nombre: string;
   email: string;
-  rol: 'admin' | 'jefe' | 'consulta' | 'acopio';
+  rol: 'admin' | 'jefe' | 'consulta' | 'acopio' | 'administrativo';
   activo: boolean;
   empresa?: { id: string; nombre: string; codigo: number };
 };

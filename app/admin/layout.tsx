@@ -8,6 +8,7 @@ const MENU = [
   { href: '/admin/acopio/', t: 'Acopio y bins', i: '🧺' },
   { href: '/admin/anulados/', t: 'Anulados y cambios', i: '🗂️' },
   { href: '/admin/trabajadores/', t: 'Trabajadores', i: '👷' },
+  { href: '/admin/ingresos/', t: 'Ingreso de personal', i: '📝' },
   { href: '/admin/tarjetas/', t: 'Tarjetas QR', i: '🪪' },
   { href: '/admin/maestros/', t: 'Huertos y maestros', i: '🌳' },
   { href: '/admin/config/', t: 'Reglas y tarifas', i: '⚙️' },
@@ -39,8 +40,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return <div style={{ padding: '2rem' }} className="muted">Abriendo la app de terreno…</div>;
   }
 
+  // Administrativo: solo ingreso de personal
+  const menu = perfil.rol === 'administrativo' ? MENU.filter((m) => m.href.startsWith('/admin/ingresos/')) : MENU;
+  if (perfil.rol === 'administrativo' && ruta && !ruta.startsWith('/admin/ingresos')) {
+    if (typeof window !== 'undefined') location.replace('/admin/ingresos/');
+    return <div style={{ padding: '2rem' }} className="muted">Abriendo ingreso de personal…</div>;
+  }
+
   const activo = (h: string) => (h === '/admin/' ? ruta === '/admin/' || ruta === '/admin' : ruta.startsWith(h));
-  const actual = MENU.find((m) => activo(m.href));
+  const actual = menu.find((m) => activo(m.href));
 
   return (
     <div className="admin">
@@ -53,7 +61,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <nav className={`no-print ${abierto ? 'abierto' : ''}`}>
         <div className="marca solo-escritorio"><img src="/logo.svg" alt="" className="marca-ico" />QSecha</div>
         <div className="empresa">{perfil.empresa?.nombre}</div>
-        {MENU.map((m) => (
+        {menu.map((m) => (
           <a key={m.href} href={m.href} className={activo(m.href) ? 'activo' : ''}>
             <span className="ico">{m.i}</span>{m.t}
           </a>

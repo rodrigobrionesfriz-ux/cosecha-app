@@ -6,7 +6,7 @@ import { errorAmigable, useTabla } from '@/lib/datos';
 import { fechaCL } from '@/lib/util';
 import Operadores from '@/components/Operadores';
 
-const ROLES: Record<string, string> = { admin: 'Administrador', jefe: 'Jefe de cuadrilla (terreno)', acopio: 'Operador de acopio', consulta: 'Solo consulta' };
+const ROLES: Record<string, string> = { admin: 'Administrador', jefe: 'Jefe de cuadrilla (terreno)', acopio: 'Operador de acopio', administrativo: 'Administrativo (ingreso de personal)', consulta: 'Solo consulta' };
 
 export default function Usuarios() {
   const { perfil } = useAuth();

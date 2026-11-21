@@ -1,0 +1,286 @@
+'use client';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth';
+import { cargarTabla, errorAmigable, useTabla } from '@/lib/datos';
+import { formatearRut, hoyISO, normalizarRut, rutValido } from '@/lib/util';
+import { leerCedula } from '@/lib/cedula';
+import { celularVisible, excelIngresos, fechaCorta, Ficha, pdfIngresos } from '@/lib/ingresos';
+import CapturaQR from '@/components/CapturaQR';
+
+const PARENTESCOS = ['Madre', 'Padre', 'Cónyuge', 'Pareja', 'Hijo(a)', 'Hermano(a)', 'Abuelo(a)', 'Tío(a)', 'Amigo(a)', 'Otro'];
+const PROPIO = 'propio';
+
+type Form = {
+  rut: string; extranjero: boolean; nombres: string; apellido_paterno: string; apellido_materno: string;
+  fecha_nacimiento: string; cedula_serie: string; cedula_vencimiento: string; qr_texto: string;
+  direccion: string; comuna: string; contratista: string; // '' = sin elegir, 'propio' = interno
+  contacto_nombre: string; contacto_parentesco: string; celular8: string; fecha_ingreso: string; observacion: string;
+};
+const vacio = (): Form => ({
+  rut: '', extranjero: false, nombres: '', apellido_paterno: '', apellido_materno: '', fecha_nacimiento: '', cedula_serie: '',
+  cedula_vencimiento: '', qr_texto: '', direccion: '', comuna: '', contratista: '', contacto_nombre: '', contacto_parentesco: '',
+  celular8: '', fecha_ingreso: hoyISO(), observacion: '',
+});
+const desdeFicha = (f: Ficha): Form => ({
+  rut: f.extranjero ? f.rut : formatearRut(f.rut), extranjero: f.extranjero, nombres: f.nombres, apellido_paterno: f.apellido_paterno ?? '',
+  apellido_materno: f.apellido_materno ?? '', fecha_nacimiento: f.fecha_nacimiento ?? '', cedula_serie: f.cedula_serie ?? '',
+  cedula_vencimiento: f.cedula_vencimiento ?? '', qr_texto: f.qr_texto ?? '', direccion: f.direccion ?? '', comuna: f.comuna ?? '',
+  contratista: f.contratista_id ?? PROPIO, contacto_nombre: f.contacto_nombre ?? '', contacto_parentesco: f.contacto_parentesco ?? '',
+  celular8: (f.contacto_celular ?? '').replace(/^\+569/, ''), fecha_ingreso: f.fecha_ingreso, observacion: f.observacion ?? '',
+});
+
+export default function Ingresos() {
+  const [vista, setVista] = useState<'nuevo' | 'listado'>('nuevo');
+  const [editar, setEditar] = useState<Ficha | null>(null);
+  const [version, setVersion] = useState(0);
+  const contr = useTabla<any>('contratistas', 'id,nombre,rut,activo', 'nombre');
+  const contratistas = contr.filas.filter((c) => c.activo !== false);
+
+  return (
+    <div>
+      <div className="encabezado"><h1>Ingreso de personal</h1></div>
+      <div className="tabs no-print">
+        <button className={vista === 'nuevo' ? 'activo' : ''} onClick={() => setVista('nuevo')}>{editar ? 'Editar ingreso' : 'Nuevo ingreso'}</button>
+        <button className={vista === 'listado' ? 'activo' : ''} onClick={() => setVista('listado')}>Listado y reportes</button>
+      </div>
+      {vista === 'nuevo'
+        ? <Formulario key={editar?.id ?? 'nuevo-' + version} inicial={editar} contratistas={contratistas}
+            onNuevo={() => { setEditar(null); setVersion((v) => v + 1); }} />
+        : <Listado contratistas={contratistas} onEditar={(f) => { setEditar(f); setVista('nuevo'); }} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Formulario
+function Formulario({ inicial, contratistas, onNuevo }: { inicial: Ficha | null; contratistas: any[]; onNuevo: () => void }) {
+  const [f, setF] = useState<Form>(inicial ? desdeFicha(inicial) : vacio());
+  const [msg, setMsg] = useState<{ t: 'ok' | 'error' | 'aviso' | 'info'; m: string } | null>(null);
+  const [guardado, setGuardado] = useState<string | null>(inicial?.trabajador_id ?? null); // trabajador_id
+  const [cambios, setCambios] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
+  const set = (k: keyof Form, v: any) => { setF((x) => ({ ...x, [k]: v })); setCambios(true); };
+
+  const rutOk = f.extranjero ? f.rut.trim().length >= 3 : rutValido(f.rut);
+  const celOk = /^\d{8}$/.test(f.celular8);
+  const vencido = f.cedula_vencimiento && f.cedula_vencimiento < hoyISO();
+
+  /** Al tener el RUT, completar con lo que ya exista (trabajador y ficha) */
+  async function buscarExistente(rut: string, extra?: Partial<Form>) {
+    const r = normalizarRut(rut);
+    const [t] = await cargarTabla<any>('trabajadores', 'id,nombres,apellido_paterno,apellido_materno,contratista_id', (q) => q.eq('rut', r));
+    if (!t) { setMsg({ t: 'info', m: 'Trabajador nuevo. Completa los nombres: el QR del carnet no los trae.' }); return; }
+    const [fi] = await cargarTabla<Ficha>('v_fichas_ingreso', '*', (q) => q.eq('trabajador_id', t.id));
+    setF((x) => {
+      const base = fi ? desdeFicha(fi) : { ...x, nombres: t.nombres, apellido_paterno: t.apellido_paterno ?? '', apellido_materno: t.apellido_materno ?? '', contratista: t.contratista_id ?? x.contratista };
+      // lo recién leído del carnet manda sobre lo guardado
+      return { ...base, ...Object.fromEntries(Object.entries(extra || {}).filter(([, v]) => v)), rut: formatearRut(r) };
+    });
+    setGuardado(fi ? t.id : null);
+    setMsg({ t: 'aviso', m: fi ? `Este trabajador ya tiene ficha de ingreso (${fechaCorta(fi.fecha_ingreso)}). Revisa los datos y guarda para actualizarla.` : 'Trabajador ya registrado en el sistema: se completaron sus nombres. Falta su ficha de ingreso.' });
+  }
+
+  function alLeer(texto: string) {
+    const d = leerCedula(texto);
+    if (!d?.rut) { setMsg({ t: 'error', m: 'No reconocí el código. Escanea el QR del reverso del carnet.' }); return false; }
+    const extra: Partial<Form> = {
+      fecha_nacimiento: d.nacimiento ?? '', cedula_serie: d.serie ?? '', cedula_vencimiento: d.vencimiento ?? '', qr_texto: d.texto,
+    };
+    setF((x) => ({ ...x, ...Object.fromEntries(Object.entries(extra).filter(([, v]) => v)), rut: formatearRut(d.rut!), extranjero: false }));
+    setCambios(true);
+    buscarExistente(d.rut, extra);
+    return true;
+  }
+
+  async function guardar(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!rutOk) return setMsg({ t: 'error', m: 'RUT inválido.' });
+    if (!f.nombres.trim() || !f.apellido_paterno.trim()) return setMsg({ t: 'error', m: 'Faltan nombres o apellido paterno.' });
+    if (!f.direccion.trim()) return setMsg({ t: 'error', m: 'Falta la dirección particular.' });
+    if (!f.contratista) return setMsg({ t: 'error', m: 'Selecciona el contratista (o Propio / interno).' });
+    if (!f.contacto_nombre.trim() || !f.contacto_parentesco.trim()) return setMsg({ t: 'error', m: 'Falta el nombre o el parentesco del contacto.' });
+    if (!celOk) return setMsg({ t: 'error', m: 'El celular de contacto debe tener los 8 dígitos después del +569.' });
+    setOcupado(true);
+    const { data, error } = await supabase.rpc('registrar_ingreso', {
+      p: {
+        rut: f.extranjero ? f.rut.trim().toUpperCase() : normalizarRut(f.rut), extranjero: f.extranjero,
+        nombres: f.nombres, apellido_paterno: f.apellido_paterno, apellido_materno: f.apellido_materno,
+        fecha_nacimiento: f.fecha_nacimiento, cedula_serie: f.cedula_serie, cedula_vencimiento: f.cedula_vencimiento, qr_texto: f.qr_texto,
+        direccion: f.direccion, comuna: f.comuna, contratista_id: f.contratista === PROPIO ? null : f.contratista,
+        contacto_nombre: f.contacto_nombre, contacto_parentesco: f.contacto_parentesco, contacto_celular: '+569' + f.celular8,
+        fecha_ingreso: f.fecha_ingreso, observacion: f.observacion,
+      },
+    });
+    setOcupado(false);
+    if (error) return setMsg({ t: 'error', m: errorAmigable(error.message) });
+    setGuardado(data as string); setCambios(false);
+    setMsg({ t: 'ok', m: `Ingreso de ${f.nombres} ${f.apellido_paterno} guardado. Ya puedes imprimir el Derecho a Saber.` });
+  }
+
+  const imprimir = () => guardado && window.open(`/admin/ingresos/imprimir/?id=${guardado}`, '_blank');
+
+  return (
+    <form onSubmit={guardar} className="ingreso">
+      <section className="tarjeta">
+        <h3 style={{ marginTop: 0 }}>1. Carnet de identidad</h3>
+        {!inicial && <CapturaQR etiqueta="Escanear QR del carnet" ayuda="Apunta al QR del reverso del carnet" onScan={alLeer} alto={260} />}
+        <div className="fila" style={{ marginTop: '.8rem' }}>
+          <div className="campo">
+            <label>RUT *</label>
+            <input value={f.rut} onChange={(e) => set('rut', e.target.value)} onBlur={() => { if (!inicial && !f.extranjero && rutValido(f.rut) && !f.nombres) buscarExistente(f.rut); }}
+              placeholder="12.345.678-9" disabled={!!inicial} />
+            {f.rut && !rutOk && <small className="txt-err">RUT inválido</small>}
+          </div>
+          <div className="campo" style={{ flex: '0 1 150px' }}>
+            <label className="check" style={{ marginTop: '1.5rem' }}><input type="checkbox" checked={f.extranjero} disabled={!!inicial} onChange={(e) => set('extranjero', e.target.checked)} /> Sin RUT chileno</label>
+          </div>
+          <div className="campo"><label>N° documento</label><input value={f.cedula_serie} onChange={(e) => set('cedula_serie', e.target.value)} /></div>
+        </div>
+        <div className="fila">
+          <div className="campo"><label>Nombres *</label><input value={f.nombres} onChange={(e) => set('nombres', e.target.value)} /></div>
+          <div className="campo"><label>Apellido paterno *</label><input value={f.apellido_paterno} onChange={(e) => set('apellido_paterno', e.target.value)} /></div>
+          <div className="campo"><label>Apellido materno</label><input value={f.apellido_materno} onChange={(e) => set('apellido_materno', e.target.value)} /></div>
+        </div>
+        <div className="fila">
+          <div className="campo"><label>Fecha de nacimiento</label><input type="date" value={f.fecha_nacimiento} onChange={(e) => set('fecha_nacimiento', e.target.value)} /></div>
+          <div className="campo">
+            <label>Vencimiento del carnet</label><input type="date" value={f.cedula_vencimiento} onChange={(e) => set('cedula_vencimiento', e.target.value)} />
+            {vencido && <small className="txt-err">Carnet vencido</small>}
+          </div>
+          <div className="campo"><label>Fecha de ingreso *</label><input type="date" value={f.fecha_ingreso} onChange={(e) => set('fecha_ingreso', e.target.value)} required /></div>
+        </div>
+      </section>
+
+      <section className="tarjeta">
+        <h3 style={{ marginTop: 0 }}>2. Domicilio y contratista</h3>
+        <div className="fila">
+          <div className="campo" style={{ flexGrow: 2 }}><label>Dirección particular *</label><input value={f.direccion} onChange={(e) => set('direccion', e.target.value)} placeholder="Calle, número, villa o sector" /></div>
+          <div className="campo"><label>Comuna</label><input value={f.comuna} onChange={(e) => set('comuna', e.target.value)} /></div>
+        </div>
+        <div className="campo">
+          <label>Contratista *</label>
+          <select value={f.contratista} onChange={(e) => set('contratista', e.target.value)}>
+            <option value="">Seleccionar…</option>
+            <option value={PROPIO}>Propio / interno</option>
+            {contratistas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+        </div>
+      </section>
+
+      <section className="tarjeta">
+        <h3 style={{ marginTop: 0 }}>3. Contacto de emergencia</h3>
+        <div className="fila">
+          <div className="campo"><label>Nombre del contacto *</label><input value={f.contacto_nombre} onChange={(e) => set('contacto_nombre', e.target.value)} /></div>
+          <div className="campo">
+            <label>Parentesco *</label>
+            <input list="parentescos" value={f.contacto_parentesco} onChange={(e) => set('contacto_parentesco', e.target.value)} placeholder="Madre, cónyuge…" />
+            <datalist id="parentescos">{PARENTESCOS.map((p) => <option key={p} value={p} />)}</datalist>
+          </div>
+          <div className="campo">
+            <label>Celular de contacto *</label>
+            <div className="celular">
+              <span className="prefijo">+56 9</span>
+              <input inputMode="numeric" maxLength={8} value={f.celular8} placeholder="12345678"
+                onChange={(e) => set('celular8', e.target.value.replace(/\D/g, '').slice(0, 8))} />
+            </div>
+            {f.celular8 && !celOk && <small className="txt-err">Faltan {8 - f.celular8.length} dígito(s)</small>}
+          </div>
+        </div>
+        <div className="campo"><label>Observación</label><input value={f.observacion} onChange={(e) => set('observacion', e.target.value)} placeholder="Opcional" /></div>
+      </section>
+
+      {msg && <div className={`alerta ${msg.t}`}>{msg.m}</div>}
+      <div className="acciones ingreso-acciones">
+        <button className="primario grande" disabled={ocupado}>{ocupado ? 'Guardando…' : guardado && !inicial ? 'Guardar cambios' : inicial ? 'Guardar cambios' : 'Guardar ingreso'}</button>
+        <button type="button" className="grande" onClick={imprimir} disabled={!guardado || cambios} title={!guardado ? 'Guarda el ingreso primero' : cambios ? 'Guarda los cambios primero' : ''}>
+          🖨️ Imprimir Derecho a Saber
+        </button>
+        <button type="button" onClick={onNuevo}>Nuevo ingreso</button>
+      </div>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------- Listado
+function Listado({ contratistas, onEditar }: { contratistas: any[]; onEditar: (f: Ficha) => void }) {
+  const { perfil } = useAuth();
+  const [desde, setDesde] = useState(hoyISO().slice(0, 8) + '01');
+  const [hasta, setHasta] = useState(hoyISO());
+  const [fContr, setFContr] = useState('');
+  const [buscar, setBuscar] = useState('');
+  const [filas, setFilas] = useState<Ficha[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [ocupado, setOcupado] = useState('');
+
+  useEffect(() => {
+    setCargando(true);
+    cargarTabla<Ficha>('v_fichas_ingreso', '*', (q) => q.gte('fecha_ingreso', desde).lte('fecha_ingreso', hasta), 'fecha_ingreso')
+      .then((l) => setFilas(l.reverse())).catch(() => setFilas([])).finally(() => setCargando(false));
+  }, [desde, hasta]);
+
+  const visibles = useMemo(() => {
+    const b = buscar.toLowerCase();
+    return filas.filter((f) => (!fContr || (fContr === PROPIO ? !f.contratista_id : f.contratista_id === fContr))
+      && (!b || `${f.rut} ${f.nombre_completo}`.toLowerCase().includes(b)));
+  }, [filas, fContr, buscar]);
+
+  const nomContr = fContr === PROPIO ? 'Propio' : contratistas.find((c) => c.id === fContr)?.nombre;
+  const titulo = `Ingreso de personal${nomContr ? ' - ' + nomContr : ''}`;
+  const rango = `${fechaCorta(desde)} al ${fechaCorta(hasta)}`;
+
+  async function exportar(tipo: 'xlsx' | 'pdf') {
+    if (!visibles.length) return;
+    setOcupado(tipo);
+    try {
+      if (tipo === 'xlsx') await excelIngresos(visibles, `${titulo} ${rango}`);
+      else await pdfIngresos(visibles, { titulo, empresa: perfil?.empresa?.nombre ?? '', rango });
+    } catch (e: any) { alert('No se pudo generar: ' + e.message); }
+    setOcupado('');
+  }
+
+  return (
+    <div>
+      <div className="fila filtros">
+        <div className="campo"><label>Ingreso desde</label><input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></div>
+        <div className="campo"><label>Hasta</label><input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></div>
+        <div className="campo">
+          <label>Contratista</label>
+          <select value={fContr} onChange={(e) => setFContr(e.target.value)}>
+            <option value="">Todos</option>
+            <option value={PROPIO}>Propio / interno</option>
+            {contratistas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+        </div>
+        <div className="campo"><label>Buscar</label><input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="RUT o nombre" /></div>
+      </div>
+      <div className="acciones" style={{ marginBottom: '.8rem' }}>
+        <button onClick={() => exportar('xlsx')} disabled={!visibles.length || !!ocupado}>{ocupado === 'xlsx' ? 'Generando…' : 'Excel'}</button>
+        <button onClick={() => exportar('pdf')} disabled={!visibles.length || !!ocupado}>{ocupado === 'pdf' ? 'Generando…' : 'PDF por contratista'}</button>
+        <span className="muted">{visibles.length} trabajador(es). El PDF deja una página por contratista con firmas, para la carpeta de prevención.</span>
+      </div>
+      <div className="tabla-wrap">
+        <table>
+          <thead><tr><th>Ingreso</th><th>RUT</th><th>Nombre</th><th>Contratista</th><th>Dirección</th><th>Contacto</th><th></th></tr></thead>
+          <tbody>
+            {cargando && <tr><td colSpan={7} className="muted">Cargando…</td></tr>}
+            {!cargando && !visibles.length && <tr><td colSpan={7} className="muted">Sin ingresos en el período.</td></tr>}
+            {visibles.map((f) => (
+              <tr key={f.id}>
+                <td>{fechaCorta(f.fecha_ingreso)}</td>
+                <td className="mono">{f.extranjero ? f.rut : formatearRut(f.rut)}</td>
+                <td>{f.nombre_completo}{f.cedula_vencimiento && f.cedula_vencimiento < hoyISO() && <> <span className="badge err">carnet vencido</span></>}</td>
+                <td>{f.contratista}</td>
+                <td>{[f.direccion, f.comuna].filter(Boolean).join(', ')}</td>
+                <td>{f.contacto_nombre}{f.contacto_parentesco ? ` (${f.contacto_parentesco})` : ''}<br /><span className="muted">{celularVisible(f.contacto_celular)}</span></td>
+                <td className="acciones" style={{ justifyContent: 'flex-end' }}>
+                  <button className="chico" onClick={() => onEditar(f)}>Editar</button>
+                  <button className="chico" onClick={() => window.open(`/admin/ingresos/imprimir/?id=${f.trabajador_id}`, '_blank')}>🖨️ Derecho a Saber</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
