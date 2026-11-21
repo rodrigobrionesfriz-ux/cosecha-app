@@ -341,3 +341,5 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
 .pin-teclado button:active { background: var(--verde-claro); }
 .kpi-total { background: var(--verde-claro); border-color: var(--verde); }
 .kpi-total .v { color: var(--verde-osc); }
+.kpis-pago { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 800px) { .kpis-pago { grid-template-columns: 1fr 1fr; } .kpis-pago .kpi-total { grid-column: 1 / -1; } }

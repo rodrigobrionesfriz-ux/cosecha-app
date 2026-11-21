@@ -219,15 +219,17 @@ export default function Dashboard() {
         <div className="kpi"><div className="v">{num(r.envases)}</div><div className="l">Envases</div></div>
         <div className="kpi"><div className="v">{num(r.trabajadores)}</div><div className="l">Trabajadores</div></div>
         <div className="kpi"><div className="v">{num(rendimiento, 1)}</div><div className="l">Kg por trabajador{diario ? '' : ' al día'}</div></div>
+        {diario
+          ? <div className="kpi"><div className="v">{ultima ? horaCorta(ultima.leido_en) : '—'}</div><div className="l">Última lectura</div></div>
+          : <div className="kpi"><div className="v">{r.dias}</div><div className="l">Días con cosecha</div></div>}
+      </div>
+      <div className="kpis kpis-pago">
         <div className="kpi"><div className="v">${num(r.pagoTrab)}</div><div className="l">A pagar a trabajadores</div></div>
         <div className="kpi" title={r.contratistas.map((c) => `${c.nombre}: ${[...c.pcts].join(' / ') || 0}% sobre $${num(c.base)} = $${num(c.recargo)}`).join('\n')}>
           <div className="v">${num(r.recargo)}</div>
           <div className="l">A pagar a contratistas{pctContratistas ? ` · ${pctContratistas}` : ''}</div>
         </div>
         <div className="kpi kpi-total"><div className="v">${num(r.pago)}</div><div className="l">Total a pagar</div></div>
-        {diario
-          ? <div className="kpi"><div className="v">{ultima ? horaCorta(ultima.leido_en) : '—'}</div><div className="l">Última lectura</div></div>
-          : <div className="kpi"><div className="v">{r.dias}</div><div className="l">Días con cosecha</div></div>}
       </div>
 
       {dupl.length > 0 && (
