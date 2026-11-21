@@ -146,9 +146,9 @@ export default function Campo() {
           {esEquipo ? (
             <button type="button" onClick={() => {
               if (!op) return;
-              if (!confirm(`¿Cambiar de jefe? ${op.nombre} deja el equipo. Lo registrado queda guardado.`)) return;
+              if (!confirm(`¿Cerrar la sesión de ${op.nombre}? Lo registrado queda guardado. Luego otro jefe puede entrar con su nombre y PIN.`)) return;
               fijarOperador(null); setOp(null); setTab('registro');
-            }}>Cambiar jefe</button>
+            }}>Salir ({op?.nombre?.split(' ')[0] ?? 'jefe'})</button>
           ) : <button type="button" onClick={() => {
             const aviso = pendientes
               ? `Tienes ${pendientes} registro(s) sin subir. Quedan guardados en este teléfono y se subirán cuando vuelvas a entrar con tu usuario.\n\n¿Cerrar sesión?`

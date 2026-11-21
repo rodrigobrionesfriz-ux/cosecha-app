@@ -108,7 +108,7 @@ export default function Acopio() {
         <div className="top-acciones">
           {perfil.rol === 'admin' && <a href="/admin/acopio/">Panel</a>}
           {!perfil.email ? (
-            <button type="button" onClick={() => { if (op && confirm(`¿Cambiar de operador? ${op.nombre} deja el equipo.`)) { fijarOperador(null); setOp(null); } }}>Cambiar</button>
+            <button type="button" onClick={() => { if (op && confirm(`¿Cerrar la sesión de ${op.nombre}? Lo registrado queda guardado.`)) { fijarOperador(null); setOp(null); } }}>Salir ({op?.nombre?.split(' ')[0] ?? 'operador'})</button>
           ) : <button type="button" onClick={() => { if (confirm(pendientes ? `Tienes ${pendientes} registro(s) sin subir. Quedan en el teléfono. ¿Cerrar sesión?` : '¿Cerrar sesión?')) salir(); }}>Salir</button>}
         </div>
       </div>
