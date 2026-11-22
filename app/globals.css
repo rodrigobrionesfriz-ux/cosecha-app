@@ -379,3 +379,9 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
 .barra-prog > div { height: 100%; background: var(--verde); transition: width .3s; }
 .ayuda-carnet { font-size: .85rem; margin: .5rem 0; }
 .solo-qr summary { cursor: pointer; font-size: .9rem; color: var(--verde-osc); margin: .4rem 0; }
+.resultado.aviso { background: #fbedc9; color: #6b4a00; }
+.resultado .etiqueta-base { display: inline-block; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .15rem .55rem; border-radius: 99px; background: rgba(255,255,255,.6); margin-bottom: .35rem; }
+.sin-ficha { margin-bottom: 1rem; }
+.sin-ficha summary { cursor: pointer; font-weight: 600; }
+.sin-ficha ul { list-style: none; padding: 0; margin: .5rem 0 0; }
+.sin-ficha li { display: flex; justify-content: space-between; align-items: center; gap: .6rem; padding: .35rem 0; border-top: 1px solid var(--borde); }

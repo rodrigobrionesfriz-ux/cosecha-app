@@ -35,6 +35,7 @@ const desdeFicha = (f: Ficha): Form => ({
 export default function Ingresos() {
   const [vista, setVista] = useState<'nuevo' | 'listado'>('nuevo');
   const [editar, setEditar] = useState<Ficha | null>(null);
+  const [completarRut, setCompletarRut] = useState('');
   const [version, setVersion] = useState(0);
   const contr = useTabla<any>('contratistas', 'id,nombre,rut,activo', 'nombre');
   const contratistas = contr.filas.filter((c) => c.activo !== false);
@@ -47,15 +48,16 @@ export default function Ingresos() {
         <button className={vista === 'listado' ? 'activo' : ''} onClick={() => setVista('listado')}>Listado y reportes</button>
       </div>
       {vista === 'nuevo'
-        ? <Formulario key={editar?.id ?? 'nuevo-' + version} inicial={editar} contratistas={contratistas}
-            onNuevo={() => { setEditar(null); setVersion((v) => v + 1); }} />
-        : <Listado contratistas={contratistas} onEditar={(f) => { setEditar(f); setVista('nuevo'); }} />}
+        ? <Formulario key={editar?.id ?? 'nuevo-' + version + completarRut} inicial={editar} rutInicial={completarRut} contratistas={contratistas}
+            onNuevo={() => { setEditar(null); setCompletarRut(''); setVersion((v) => v + 1); }} />
+        : <Listado contratistas={contratistas} onEditar={(f) => { setEditar(f); setCompletarRut(''); setVista('nuevo'); }}
+            onCompletar={(rut) => { setEditar(null); setCompletarRut(rut); setVista('nuevo'); }} />}
     </div>
   );
 }
 
 // ---------------------------------------------------------------- Formulario
-function Formulario({ inicial, contratistas, onNuevo }: { inicial: Ficha | null; contratistas: any[]; onNuevo: () => void }) {
+function Formulario({ inicial, rutInicial, contratistas, onNuevo }: { inicial: Ficha | null; rutInicial?: string; contratistas: any[]; onNuevo: () => void }) {
   const [f, setF] = useState<Form>(inicial ? desdeFicha(inicial) : vacio());
   const [msg, setMsg] = useState<{ t: 'ok' | 'error' | 'aviso' | 'info'; m: string } | null>(null);
   const [guardado, setGuardado] = useState<string | null>(inicial?.trabajador_id ?? null); // trabajador_id
@@ -149,6 +151,9 @@ function Formulario({ inicial, contratistas, onNuevo }: { inicial: Ficha | null;
     setGuardado(data as string); setCambios(false);
     setMsg({ t: 'ok', m: `Ingreso de ${f.nombres} ${f.apellido_paterno} guardado. Ya puedes imprimir el Derecho a Saber.` });
   }
+
+  // Viene de "Completar ficha" (trabajador registrado en campo)
+  useEffect(() => { if (rutInicial && !inicial) { setF((x) => ({ ...x, rut: formatearRut(rutInicial) })); buscarExistente(rutInicial); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const imprimir = () => guardado && window.open(`/admin/ingresos/imprimir/?id=${guardado}`, '_blank');
 
@@ -257,7 +262,9 @@ function Formulario({ inicial, contratistas, onNuevo }: { inicial: Ficha | null;
 }
 
 // ---------------------------------------------------------------- Listado
-function Listado({ contratistas, onEditar }: { contratistas: any[]; onEditar: (f: Ficha) => void }) {
+function Listado({ contratistas, onEditar, onCompletar }: { contratistas: any[]; onEditar: (f: Ficha) => void; onCompletar: (rut: string) => void }) {
+  const sinFicha = useTabla<any>('trabajadores', 'id,rut,nombres,apellido_paterno,contratista_id,estado,con_ficha', 'apellido_paterno');
+  const pendientes = sinFicha.filas.filter((t) => !t.con_ficha && t.estado !== 'I');
   const { perfil } = useAuth();
   const [desde, setDesde] = useState(hoyISO().slice(0, 8) + '01');
   const [hasta, setHasta] = useState(hoyISO());
@@ -313,6 +320,19 @@ function Listado({ contratistas, onEditar }: { contratistas: any[]; onEditar: (f
         <button onClick={() => exportar('pdf')} disabled={!visibles.length || !!ocupado}>{ocupado === 'pdf' ? 'Generando…' : 'PDF por contratista'}</button>
         <span className="muted">{visibles.length} trabajador(es). El PDF deja una página por contratista con firmas, para la carpeta de prevención.</span>
       </div>
+      {pendientes.length > 0 && (
+        <details className="alerta aviso sin-ficha">
+          <summary>{pendientes.length} trabajador(es) registrados en campo sin ficha de ingreso</summary>
+          <ul>
+            {pendientes.map((t) => (
+              <li key={t.id}>
+                <span>{t.nombres} {t.apellido_paterno ?? ''} · <span className="mono">{formatearRut(t.rut)}</span> · {contratistas.find((c) => c.id === t.contratista_id)?.nombre ?? 'Propio'}</span>
+                <button className="chico" onClick={() => onCompletar(t.rut)}>Completar ficha</button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <div className="tabla-wrap">
         <table>
           <thead><tr><th>Ingreso</th><th>RUT</th><th>Nombre</th><th>Contratista</th><th>Dirección</th><th>Contacto</th><th></th></tr></thead>

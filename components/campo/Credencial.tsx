@@ -51,14 +51,17 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
     const r = extranjero ? valor.trim().toUpperCase() : normalizarRut(valor);
     if (!extranjero && !rutValido(r)) { setAviso({ t: 'error', m: 'RUT inválido. Revisa el dígito verificador.' }); beep(false); return; }
     setRut(r); setAviso(null);
+    // 1) base de personal (ingresado por administrativo o administración); 2) registrado antes en campo; 3) ingreso manual
     const t = m.trabajadores.find((x) => x.rut === r);
-    beep(true); vibrar(60);
     if (t) {
+      beep(true); vibrar(60);
       setTrab(t);
       setContr(t.contratista_id || PROPIO);
       if (t.estado === 'B') { setAviso({ t: 'error', m: 'Trabajador bloqueado. Enviar a administración.' }); return; }
-      setPaso(prefill ? 'credencial' : 'credencial');
+      if (!t.con_ficha) setAviso({ t: 'aviso', m: 'Registrado antes en campo, pero sin ficha de ingreso en administración. Puedes asignarle credencial; avisa a administración para completar su ficha.' });
+      setPaso('credencial');
     } else {
+      beep(false); vibrar([120, 80, 120]);
       setTrab(null);
       setContr(m.contratistas.length ? '' : PROPIO);
       setPaso('datos');
@@ -118,7 +121,7 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
 
       {paso === 'rut' && (
         <>
-          <p className="muted" style={{ marginTop: 0 }}>1. Lee el QR del carnet del trabajador o escribe su RUT.</p>
+          <p className="muted" style={{ marginTop: 0 }}>1. Lee el QR del carnet del trabajador o escribe su RUT. Se busca primero en la base de personal ingresada por administración.</p>
           {!extranjero && (
             <>
               <CapturaQR etiqueta="Capturar carnet" onScan={(t) => onScanRut(t)} ayuda="Carnet a 15 a 20 cm, sin reflejo" />
@@ -138,7 +141,10 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
 
       {paso === 'datos' && (
         <>
-          <div className="alerta info">Trabajador nuevo: <b>{extranjero ? rut : formatearRut(rut)}</b>. Completa sus datos.</div>
+          <div className="alerta aviso">
+            <b>{extranjero ? rut : formatearRut(rut)}</b> no está en la base de personal. Ingresa sus datos a mano; administración deberá completar su ficha de ingreso.
+            <div className="muted" style={{ fontSize: '.82rem', marginTop: '.25rem' }}>Si debería estar, sincroniza para bajar el personal recién ingresado.</div>
+          </div>
           <div className="campo"><label>Nombres *</label><input value={datos.nombres} onChange={(e) => setDatos({ ...datos, nombres: e.target.value })} autoFocus /></div>
           <div className="campo"><label>Apellido paterno *</label><input value={datos.apellido_paterno} onChange={(e) => setDatos({ ...datos, apellido_paterno: e.target.value })} /></div>
           <div className="campo"><label>Apellido materno</label><input value={datos.apellido_materno} onChange={(e) => setDatos({ ...datos, apellido_materno: e.target.value })} /></div>
@@ -150,7 +156,10 @@ export default function Credencial({ m, cfg, prefill, limpiarPrefill, onCambio }
 
       {paso === 'credencial' && (
         <>
-          <div className="resultado ok">
+          <div className={`resultado ${trab?.con_ficha ? 'ok' : trab ? 'aviso' : 'ok'}`}>
+            {trab?.con_ficha && <div className="etiqueta-base">✔ En base de personal</div>}
+            {trab && !trab.con_ficha && <div className="etiqueta-base">Sin ficha de ingreso</div>}
+            {!trab && <div className="etiqueta-base">Ingreso manual</div>}
             <div className="nombre">{trab ? nombreTrabajador(trab) : `${datos.nombres} ${datos.apellido_paterno}`}</div>
             <div>{extranjero ? rut : formatearRut(rut)}</div>
             <div className="muted">{contr === PROPIO ? 'Propio / interno' : m.contratistas.find((c) => c.id === contr)?.nombre ?? ''}</div>

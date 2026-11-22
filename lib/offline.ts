@@ -160,7 +160,7 @@ export async function descargarMaestros(): Promise<void> {
     await setCache(t, data || []);
   }
   // Trabajadores (todos, para conocer bloqueados) y credenciales asignadas
-  const trab = await traerTodo('trabajadores', 'id,rut,nombres,apellido_paterno,apellido_materno,estado,contratista_id');
+  const trab = await traerTodo('trabajadores', 'id,rut,nombres,apellido_paterno,apellido_materno,estado,contratista_id,con_ficha');
   await setCache('trabajadores', trab);
   const tarj = await traerTodo('tarjetas', 'codigo,trabajador_id,estado', (q) => q.eq('tipo', 'W').eq('estado', 'asignada'));
   await setCache('credenciales', tarj);
@@ -210,7 +210,7 @@ export async function subirPendientes(): Promise<{ entregas: number; asignacione
   // refrescar trabajadores para resolver ids de trabajadores creados offline
   if (nAsig) {
     try {
-      await setCache('trabajadores', await traerTodo('trabajadores', 'id,rut,nombres,apellido_paterno,apellido_materno,estado,contratista_id'));
+      await setCache('trabajadores', await traerTodo('trabajadores', 'id,rut,nombres,apellido_paterno,apellido_materno,estado,contratista_id,con_ficha'));
       await setCache('credenciales', await traerTodo('tarjetas', 'codigo,trabajador_id,estado', (q) => q.eq('tipo', 'W').eq('estado', 'asignada')));
     } catch {}
   }
