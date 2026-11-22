@@ -385,3 +385,17 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
 .sin-ficha summary { cursor: pointer; font-weight: 600; }
 .sin-ficha ul { list-style: none; padding: 0; margin: .5rem 0 0; }
 .sin-ficha li { display: flex; justify-content: space-between; align-items: center; gap: .6rem; padding: .35rem 0; border-top: 1px solid var(--borde); }
+
+/* Estado de campos en el ingreso: verde listo, rojo siguiente */
+.ingreso .campo input, .ingreso .campo select, .ingreso .celular .prefijo { transition: border-color .2s, background-color .2s, box-shadow .2s; }
+.ingreso .campo.est-ok input, .ingreso .campo.est-ok select { border-color: var(--verde); background: #eef6ef; }
+.ingreso .campo.est-ok .celular .prefijo { border-color: var(--verde); background: #dcecdf; }
+.ingreso .campo.est-ok > label { color: var(--verde-osc); }
+.ingreso .campo.est-ok > label::after { content: ' ✔'; color: var(--verde); }
+.ingreso .campo.est-falta input, .ingreso .campo.est-falta select { border-color: var(--cereza); background: #fdf1f3; }
+.ingreso .campo.est-falta .celular .prefijo { border-color: var(--cereza); }
+.ingreso .campo.est-falta > label { color: var(--cereza); }
+.ingreso .campo.est-sig input, .ingreso .campo.est-sig select { box-shadow: 0 0 0 3px rgba(160, 30, 50, .15); }
+.ingreso .campo.est-sig > label::after { content: '  ← siguiente'; font-weight: 600; font-size: .8rem; }
+.progreso-ficha { margin: .4rem 0 .6rem; font-size: .92rem; font-weight: 600; color: var(--cereza); }
+.progreso-ficha.completo { color: var(--verde); }

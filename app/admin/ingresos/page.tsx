@@ -69,6 +69,26 @@ function Formulario({ inicial, rutInicial, contratistas, onNuevo }: { inicial: F
   const celOk = /^\d{8}$/.test(f.celular8);
   const vencido = f.cedula_vencimiento && f.cedula_vencimiento < hoyISO();
 
+  // Estado visual de cada campo: verde = listo, rojo = el siguiente obligatorio (o uno obligatorio que se dejó vacío)
+  const validos: Record<string, boolean> = {
+    rut: rutOk, nombres: !!f.nombres.trim(), apellido_paterno: !!f.apellido_paterno.trim(), fecha_ingreso: !!f.fecha_ingreso,
+    direccion: !!f.direccion.trim(), contratista: !!f.contratista, contacto_nombre: !!f.contacto_nombre.trim(),
+    contacto_parentesco: !!f.contacto_parentesco.trim(), celular8: celOk,
+  };
+  const siguiente = Object.keys(validos).find((k) => !validos[k]);
+  const faltan = Object.values(validos).filter((v) => !v).length;
+  const [tocados, setTocados] = useState<Set<string>>(new Set());
+  const tb = (k: string) => () => setTocados((x) => (x.has(k) ? x : new Set(x).add(k)));
+  const ec = (k: string) => {
+    if (k === 'cedula_vencimiento' && vencido) return 'campo est-falta';
+    if (k in validos) {
+      if (validos[k]) return 'campo est-ok';
+      if (k === siguiente) return 'campo est-falta est-sig';
+      return tocados.has(k) ? 'campo est-falta' : 'campo';
+    }
+    return (f as any)[k] ? 'campo est-ok' : 'campo';
+  };
+
   /** Al tener el RUT, completar con lo que ya exista (trabajador y ficha) */
   async function buscarExistente(rut: string, extra?: Partial<Form>) {
     const r = normalizarRut(rut);
@@ -180,7 +200,7 @@ function Formulario({ inicial, rutInicial, contratistas, onNuevo }: { inicial: F
           </div>
         )}
         <div className="fila" style={{ marginTop: '.8rem' }}>
-          <div className="campo">
+          <div className={ec('rut')} onBlur={tb('rut')}>
             <label>RUT *</label>
             <input value={f.rut} onChange={(e) => set('rut', e.target.value)} onBlur={() => { if (!inicial && !f.extranjero && rutValido(f.rut) && !f.nombres) buscarExistente(f.rut); }}
               placeholder="12.345.678-9" disabled={!!inicial} />
@@ -189,35 +209,35 @@ function Formulario({ inicial, rutInicial, contratistas, onNuevo }: { inicial: F
           <div className="campo" style={{ flex: '0 1 150px' }}>
             <label className="check" style={{ marginTop: '1.5rem' }}><input type="checkbox" checked={f.extranjero} disabled={!!inicial} onChange={(e) => set('extranjero', e.target.checked)} /> Sin RUT chileno</label>
           </div>
-          <div className="campo"><label>N° documento</label><input value={f.cedula_serie} onChange={(e) => set('cedula_serie', e.target.value)} /></div>
+          <div className={ec('cedula_serie')} onBlur={tb('cedula_serie')}><label>N° documento</label><input value={f.cedula_serie} onChange={(e) => set('cedula_serie', e.target.value)} /></div>
         </div>
         <div className="fila">
-          <div className="campo"><label>Nombres *</label><input value={f.nombres} onChange={(e) => set('nombres', e.target.value)} /></div>
-          <div className="campo"><label>Apellido paterno *</label><input value={f.apellido_paterno} onChange={(e) => set('apellido_paterno', e.target.value)} /></div>
-          <div className="campo"><label>Apellido materno</label><input value={f.apellido_materno} onChange={(e) => set('apellido_materno', e.target.value)} /></div>
+          <div className={ec('nombres')} onBlur={tb('nombres')}><label>Nombres *</label><input value={f.nombres} onChange={(e) => set('nombres', e.target.value)} /></div>
+          <div className={ec('apellido_paterno')} onBlur={tb('apellido_paterno')}><label>Apellido paterno *</label><input value={f.apellido_paterno} onChange={(e) => set('apellido_paterno', e.target.value)} /></div>
+          <div className={ec('apellido_materno')} onBlur={tb('apellido_materno')}><label>Apellido materno</label><input value={f.apellido_materno} onChange={(e) => set('apellido_materno', e.target.value)} /></div>
         </div>
         <div className="fila">
-          <div className="campo"><label>Fecha de nacimiento</label><input type="date" value={f.fecha_nacimiento} onChange={(e) => set('fecha_nacimiento', e.target.value)} /></div>
-          <div className="campo" style={{ flex: '0 1 130px' }}>
+          <div className={ec('fecha_nacimiento')} onBlur={tb('fecha_nacimiento')}><label>Fecha de nacimiento</label><input type="date" value={f.fecha_nacimiento} onChange={(e) => set('fecha_nacimiento', e.target.value)} /></div>
+          <div className={ec('sexo')} onBlur={tb('sexo')} style={{ flex: '0 1 130px' }}>
             <label>Sexo</label>
             <select value={f.sexo} onChange={(e) => set('sexo', e.target.value)}><option value="">—</option><option value="M">Masculino</option><option value="F">Femenino</option></select>
           </div>
-          <div className="campo" style={{ flex: '0 1 130px' }}><label>Nacionalidad</label><input value={f.nacionalidad} onChange={(e) => set('nacionalidad', e.target.value.toUpperCase())} placeholder="CHL" maxLength={3} /></div>
-          <div className="campo">
+          <div className={ec('nacionalidad')} onBlur={tb('nacionalidad')} style={{ flex: '0 1 130px' }}><label>Nacionalidad</label><input value={f.nacionalidad} onChange={(e) => set('nacionalidad', e.target.value.toUpperCase())} placeholder="CHL" maxLength={3} /></div>
+          <div className={ec('cedula_vencimiento')} onBlur={tb('cedula_vencimiento')}>
             <label>Vencimiento del carnet</label><input type="date" value={f.cedula_vencimiento} onChange={(e) => set('cedula_vencimiento', e.target.value)} />
             {vencido && <small className="txt-err">Carnet vencido</small>}
           </div>
-          <div className="campo"><label>Fecha de ingreso *</label><input type="date" value={f.fecha_ingreso} onChange={(e) => set('fecha_ingreso', e.target.value)} required /></div>
+          <div className={ec('fecha_ingreso')} onBlur={tb('fecha_ingreso')}><label>Fecha de ingreso *</label><input type="date" value={f.fecha_ingreso} onChange={(e) => set('fecha_ingreso', e.target.value)} required /></div>
         </div>
       </section>
 
       <section className="tarjeta">
         <h3 style={{ marginTop: 0 }}>2. Domicilio y contratista</h3>
         <div className="fila">
-          <div className="campo" style={{ flexGrow: 2 }}><label>Dirección particular *</label><input value={f.direccion} onChange={(e) => set('direccion', e.target.value)} placeholder="Calle, número, villa o sector" /></div>
-          <div className="campo"><label>Comuna</label><input value={f.comuna} onChange={(e) => set('comuna', e.target.value)} /></div>
+          <div className={ec('direccion')} onBlur={tb('direccion')} style={{ flexGrow: 2 }}><label>Dirección particular *</label><input value={f.direccion} onChange={(e) => set('direccion', e.target.value)} placeholder="Calle, número, villa o sector" /></div>
+          <div className={ec('comuna')} onBlur={tb('comuna')}><label>Comuna</label><input value={f.comuna} onChange={(e) => set('comuna', e.target.value)} /></div>
         </div>
-        <div className="campo">
+        <div className={ec('contratista')} onBlur={tb('contratista')}>
           <label>Contratista *</label>
           <select value={f.contratista} onChange={(e) => set('contratista', e.target.value)}>
             <option value="">Seleccionar…</option>
@@ -230,13 +250,13 @@ function Formulario({ inicial, rutInicial, contratistas, onNuevo }: { inicial: F
       <section className="tarjeta">
         <h3 style={{ marginTop: 0 }}>3. Contacto de emergencia</h3>
         <div className="fila">
-          <div className="campo"><label>Nombre del contacto *</label><input value={f.contacto_nombre} onChange={(e) => set('contacto_nombre', e.target.value)} /></div>
-          <div className="campo">
+          <div className={ec('contacto_nombre')} onBlur={tb('contacto_nombre')}><label>Nombre del contacto *</label><input value={f.contacto_nombre} onChange={(e) => set('contacto_nombre', e.target.value)} /></div>
+          <div className={ec('contacto_parentesco')} onBlur={tb('contacto_parentesco')}>
             <label>Parentesco *</label>
             <input list="parentescos" value={f.contacto_parentesco} onChange={(e) => set('contacto_parentesco', e.target.value)} placeholder="Madre, cónyuge…" />
             <datalist id="parentescos">{PARENTESCOS.map((p) => <option key={p} value={p} />)}</datalist>
           </div>
-          <div className="campo">
+          <div className={ec('celular8')} onBlur={tb('celular8')}>
             <label>Celular de contacto *</label>
             <div className="celular">
               <span className="prefijo">+56 9</span>
@@ -246,9 +266,12 @@ function Formulario({ inicial, rutInicial, contratistas, onNuevo }: { inicial: F
             {f.celular8 && !celOk && <small className="txt-err">Faltan {8 - f.celular8.length} dígito(s)</small>}
           </div>
         </div>
-        <div className="campo"><label>Observación</label><input value={f.observacion} onChange={(e) => set('observacion', e.target.value)} placeholder="Opcional" /></div>
+        <div className={ec('observacion')} onBlur={tb('observacion')}><label>Observación</label><input value={f.observacion} onChange={(e) => set('observacion', e.target.value)} placeholder="Opcional" /></div>
       </section>
 
+      <div className={`progreso-ficha ${faltan ? '' : 'completo'}`}>
+        {faltan ? `Faltan ${faltan} de ${Object.keys(validos).length} campos obligatorios` : '✔ Todos los campos obligatorios están listos'}
+      </div>
       {msg && <div className={`alerta ${msg.t}`}>{msg.m}</div>}
       <div className="acciones ingreso-acciones">
         <button className="primario grande" disabled={ocupado}>{ocupado ? 'Guardando…' : guardado && !inicial ? 'Guardar cambios' : inicial ? 'Guardar cambios' : 'Guardar ingreso'}</button>
