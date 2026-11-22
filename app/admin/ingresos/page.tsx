@@ -56,6 +56,34 @@ export default function Ingresos() {
   );
 }
 
+/** Dibujo del reverso del carnet: QR, huella y las 3 líneas de lectura mecánica */
+function IconoReverso() {
+  const qr = [[0,0],[1,0],[2,0],[0,1],[2,1],[0,2],[1,2],[2,2],[4,0],[5,1],[4,2],[3,3],[5,3],[0,4],[2,4],[4,4],[1,5],[3,5],[5,5],[0,6],[2,6],[4,6],[6,6],[6,0],[6,2],[6,4]];
+  return (
+    <svg width="96" height="62" viewBox="0 0 96 62" aria-label="Reverso del carnet" role="img">
+      <rect x="1" y="1" width="94" height="60" rx="6" fill="#f3e6cf" stroke="#b9925f" strokeWidth="1.5" />
+      <rect x="7" y="6" width="26" height="26" rx="2" fill="#fff" stroke="#c9b08a" />
+      {qr.map(([x, y], i) => <rect key={i} x={9 + x * 3.2} y={8 + y * 3.2} width="3.2" height="3.2" fill="#2b2b2b" />)}
+      <g fill="none" stroke="#8a6a45" strokeWidth="1.1" strokeLinecap="round">
+        <ellipse cx="78" cy="19" rx="9" ry="11" />
+        <ellipse cx="78" cy="19.5" rx="6" ry="8" />
+        <ellipse cx="78" cy="20" rx="3.2" ry="4.8" />
+        <path d="M78 17.5v4" />
+      </g>
+      <rect x="38" y="8" width="28" height="3" rx="1.5" fill="#cdb48f" />
+      <rect x="38" y="15" width="22" height="3" rx="1.5" fill="#cdb48f" />
+      <rect x="38" y="22" width="25" height="3" rx="1.5" fill="#cdb48f" />
+      <rect x="4" y="36" width="88" height="22" rx="2" fill="#fffaf0" />
+      <g fontFamily="monospace" fontSize="6.4" fontWeight="700" fill="#2b2b2b" letterSpacing="0.2">
+        <text x="6" y="42.5">IDCHL1023&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;</text>
+        <text x="6" y="49.5">8702144M2702&lt;&lt;&lt;&lt;&lt;&lt;&lt;</text>
+        <text x="6" y="56.5">PEREZ&lt;SOTO&lt;&lt;JUAN&lt;&lt;&lt;&lt;</text>
+      </g>
+      <rect x="4" y="36" width="88" height="22" rx="2" fill="none" stroke="#b3192f" strokeWidth="1.2" strokeDasharray="3 2" />
+    </svg>
+  );
+}
+
 // ---------------------------------------------------------------- Formulario
 function Formulario({ inicial, rutInicial, contratistas, onNuevo }: { inicial: Ficha | null; rutInicial?: string; contratistas: any[]; onNuevo: () => void }) {
   const [f, setF] = useState<Form>(inicial ? desdeFicha(inicial) : vacio());
@@ -184,7 +212,7 @@ function Formulario({ inicial, rutInicial, contratistas, onNuevo }: { inicial: F
         {!inicial && (
           <div className="lectura-carnet">
             <label className={`btn-capturar ${leyendo ? 'ocupado' : ''}`}>
-              <span className="ico">🪪</span>
+              <span className="ico"><IconoReverso /></span>
               <span>{leyendo ? `${leyendo.t} ${leyendo.p}%` : 'Fotografiar reverso del carnet'}</span>
               <input type="file" accept="image/*" capture="environment" onChange={fotoReverso} disabled={!!leyendo} hidden />
             </label>
