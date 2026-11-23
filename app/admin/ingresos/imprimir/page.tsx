@@ -6,7 +6,7 @@ import { celularVisible, fechaCorta, Ficha } from '@/lib/ingresos';
 
 /**
  * Planilla por trabajador para la carpeta de prevención de riesgos.
- * Pendiente: reemplazar el cuerpo por la plantilla oficial "Derecho a Saber" de la empresa.
+ * Pendiente: reemplazar el cuerpo por la plantilla oficial IRL (Información de Riesgos Laborales) de la empresa.
  */
 export default function ImprimirIngreso() {
   const [f, setF] = useState<Ficha | null>(null);
@@ -40,7 +40,7 @@ export default function ImprimirIngreso() {
         <button className="primario" onClick={() => window.print()}>🖨️ Imprimir</button>
         <button onClick={() => window.close()}>Cerrar</button>
       </div>
-      <div className="alerta aviso no-print">Formato provisorio: cuando se cargue la planilla oficial Derecho a Saber, se imprimirá con ese formato y estos mismos datos.</div>
+      <div className="alerta aviso no-print">Formato provisorio: cuando se cargue la planilla oficial IRL, se imprimirá con ese formato y estos mismos datos.</div>
 
       <article className="planilla">
         <header className="pl-cab">
@@ -48,7 +48,7 @@ export default function ImprimirIngreso() {
             <div className="pl-emp">{emp?.nombre ?? ''}</div>
             {emp?.rut && <div className="pl-sub">RUT {formatearRut(emp.rut)}</div>}
           </div>
-          <div className="pl-titulo">DERECHO A SABER<br /><small>Obligación de informar los riesgos laborales (DS 44)</small></div>
+          <div className="pl-titulo">IRL<br /><small>Información de Riesgos Laborales (DS 44)</small></div>
         </header>
 
         <h4>Identificación del trabajador</h4>

@@ -197,7 +197,7 @@ function Formulario({ inicial, rutInicial, contratistas, onNuevo }: { inicial: F
     setOcupado(false);
     if (error) return setMsg({ t: 'error', m: errorAmigable(error.message) });
     setGuardado(data as string); setCambios(false);
-    setMsg({ t: 'ok', m: `Ingreso de ${f.nombres} ${f.apellido_paterno} guardado. Ya puedes imprimir el Derecho a Saber.` });
+    setMsg({ t: 'ok', m: `Ingreso de ${f.nombres} ${f.apellido_paterno} guardado. Ya puedes imprimir el IRL.` });
   }
 
   // Viene de "Completar ficha" (trabajador registrado en campo)
@@ -304,7 +304,7 @@ function Formulario({ inicial, rutInicial, contratistas, onNuevo }: { inicial: F
       <div className="acciones ingreso-acciones">
         <button className="primario grande" disabled={ocupado}>{ocupado ? 'Guardando…' : guardado && !inicial ? 'Guardar cambios' : inicial ? 'Guardar cambios' : 'Guardar ingreso'}</button>
         <button type="button" className="grande" onClick={imprimir} disabled={!guardado || cambios} title={!guardado ? 'Guarda el ingreso primero' : cambios ? 'Guarda los cambios primero' : ''}>
-          🖨️ Imprimir Derecho a Saber
+          🖨️ Imprimir IRL (Información de Riesgos Laborales)
         </button>
         <button type="button" onClick={onNuevo}>Nuevo ingreso</button>
       </div>
@@ -400,7 +400,7 @@ function Listado({ contratistas, onEditar, onCompletar }: { contratistas: any[];
                 <td>{f.contacto_nombre}{f.contacto_parentesco ? ` (${f.contacto_parentesco})` : ''}<br /><span className="muted">{celularVisible(f.contacto_celular)}</span></td>
                 <td className="acciones" style={{ justifyContent: 'flex-end' }}>
                   <button className="chico" onClick={() => onEditar(f)}>Editar</button>
-                  <button className="chico" onClick={() => window.open(`/admin/ingresos/imprimir/?id=${f.trabajador_id}`, '_blank')}>🖨️ Derecho a Saber</button>
+                  <button className="chico" onClick={() => window.open(`/admin/ingresos/imprimir/?id=${f.trabajador_id}`, '_blank')}>🖨️ IRL</button>
                 </td>
               </tr>
             ))}
