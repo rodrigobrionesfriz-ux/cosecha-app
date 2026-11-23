@@ -90,10 +90,12 @@ export default function Acopio() {
   }
   if (!m) return <div className="campo-app"><div className="campo-body muted">Preparando datos…</div></div>;
 
+  // Sin cámaras de frío activas (caso La Cabaña) el flujo es recibir → despacho a packing
+  const conCamara = (m.camaras || []).some((c: any) => c.activo !== false);
   const NAV: { k: Tab; i: string; t: string }[] = [
     { k: 'recibir', i: '📥', t: 'Recibir' },
     { k: 'armar', i: '🧺', t: 'Armar' },
-    { k: 'camara', i: '❄️', t: 'Cámara' },
+    ...(conCamara ? [{ k: 'camara' as Tab, i: '❄️', t: 'Cámara' }] : []),
     { k: 'despacho', i: '🚚', t: 'Despacho' },
     { k: 'sync', i: online ? '☁️' : '📴', t: 'Sincronizar' },
   ];
@@ -122,7 +124,7 @@ export default function Acopio() {
         )}
         <div className="contexto">
           <span>Hoy</span>
-          <span><b>{num(hoy.recibidos + hoy.armados)}</b> recibidos · <b>{hoy.camara}</b> a cámara · <b>{hoy.despachados}</b> despachados</span>
+          <span><b>{num(hoy.recibidos + hoy.armados)}</b> recibidos · {conCamara && <><b>{hoy.camara}</b> a cámara · </>}<b>{hoy.despachados}</b> despachados</span>
         </div>
         {rechazos.length > 0 && (
           <details className="alerta error">
@@ -137,7 +139,7 @@ export default function Acopio() {
         )}
         {(perfil.email || op) && tab === 'recibir' && <Recibir m={m} perfil={perfil} onCambio={recargarLocal} />}
         {(perfil.email || op) && tab === 'armar' && <Armar m={m} perfil={perfil} onCambio={recargarLocal} />}
-        {(perfil.email || op) && tab === 'camara' && <Camara m={m} onCambio={recargarLocal} />}
+        {(perfil.email || op) && tab === 'camara' && conCamara && <Camara m={m} onCambio={recargarLocal} />}
         {(perfil.email || op) && tab === 'despacho' && <Despacho m={m} perfil={perfil} onCambio={recargarLocal} />}
         {tab === 'sync' && <Sync online={online} pendientes={pendientes} sincronizando={sincronizando} ultimo={ultimoSync} ultimaDescarga={m.ultima_descarga} onSync={() => sync(false)} />}
       </div>
