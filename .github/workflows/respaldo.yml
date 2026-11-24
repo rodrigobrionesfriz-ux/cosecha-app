@@ -1,0 +1,75 @@
+# Respaldo diario de la base de QSecha (Supabase) en Firebase Storage.
+# Corre todas las noches (03:15 hora de Chile en verano) y también a mano desde
+# GitHub > Actions > "Respaldo base de datos" > Run workflow.
+# Configuración y restauración: docs/RESPALDO.md
+name: Respaldo base de datos
+
+on:
+  schedule:
+    - cron: '15 6 * * *'
+  workflow_dispatch:
+
+concurrency: respaldo
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BUCKET: ${{ secrets.FIREBASE_BUCKET }}
+    steps:
+      - name: Revisar configuración
+        run: |
+          faltan=""
+          [ -z "$SUPABASE_DB_URL" ] && faltan="$faltan SUPABASE_DB_URL"
+          [ -z "$BUCKET" ] && faltan="$faltan FIREBASE_BUCKET"
+          [ -z "${{ secrets.FIREBASE_SA_KEY }}" ] && faltan="$faltan FIREBASE_SA_KEY"
+          if [ -n "$faltan" ]; then echo "::error::Faltan secretos en GitHub:$faltan (ver docs/RESPALDO.md)"; exit 1; fi
+
+      - name: Instalar cliente PostgreSQL 17
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Sacar copia de la base
+        run: |
+          set -euo pipefail
+          FECHA=$(TZ=America/Santiago date +%F_%H%M)
+          echo "FECHA=$FECHA" >> "$GITHUB_ENV"
+          mkdir -p respaldo
+          # 1) Todo lo de la app (tablas, vistas, funciones, triggers, políticas y datos)
+          pg_dump "$SUPABASE_DB_URL" -Fc --no-owner --no-privileges -n public -f "respaldo/qsecha_$FECHA.dump"
+          # 2) Usuarios de acceso (para que los perfiles calcen al restaurar)
+          pg_dump "$SUPABASE_DB_URL" --data-only --no-owner -t auth.users -t auth.identities -f "respaldo/auth_usuarios_$FECHA.sql"
+          gzip "respaldo/auth_usuarios_$FECHA.sql"
+          # 3) Conteo de filas por tabla, para revisar de un vistazo
+          psql "$SUPABASE_DB_URL" -At -F ';' -c "select relname, n_live_tup from pg_stat_user_tables where schemaname='public' order by relname" > "respaldo/conteo_$FECHA.csv"
+          # Verificar que la copia se puede leer
+          pg_restore --list "respaldo/qsecha_$FECHA.dump" > /dev/null
+          ls -lh respaldo
+
+      - name: Conectar con Firebase (Google Cloud)
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SA_KEY }}
+
+      - name: Instalar gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Subir a Firebase Storage
+        run: |
+          set -euo pipefail
+          gcloud storage cp respaldo/* "gs://$BUCKET/respaldos/$FECHA/"
+          echo "Respaldo guardado en gs://$BUCKET/respaldos/$FECHA/" >> "$GITHUB_STEP_SUMMARY"
+          cat respaldo/conteo_$FECHA.csv | sed 's/;/: /' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Borrar respaldos de más de 60 días
+        run: |
+          cat > ciclo.json <<'JSON'
+          { "rule": [ { "action": { "type": "Delete" }, "condition": { "age": 60, "matchesPrefix": ["respaldos/"] } } ] }
+          JSON
+          gcloud storage buckets update "gs://$BUCKET" --lifecycle-file=ciclo.json || echo "::warning::No se pudo fijar la limpieza automática (requiere rol Storage Admin)"
