@@ -378,3 +378,10 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
 .ingreso .campo.est-sig > label::after { content: '  ← siguiente'; font-weight: 600; font-size: .8rem; }
 .progreso-ficha { margin: .4rem 0 .6rem; font-size: .92rem; font-weight: 600; color: var(--cereza); }
 .progreso-ficha.completo { color: var(--verde); }
+
+/* ---------- Asignar credencial desde el panel ---------- */
+.ingreso-acciones { flex-direction: column; align-items: stretch; max-width: 460px; }
+.ingreso-acciones .btn-cred:not(:disabled) { border-color: var(--verde); color: var(--verde-osc); font-weight: 600; }
+.asignar-cred { border: 2px solid var(--verde); margin-top: 1rem; }
+.asignar-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: .6rem; margin-bottom: .6rem; }
+.asignar-actual { margin-bottom: .7rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { cargarTabla, errorAmigable, useTabla } from '@/lib/datos';
 import { formatearRut, normalizarRut, rutValido, uuid } from '@/lib/util';
+import AsignarCredencial from '@/components/AsignarCredencial';
 
 const ESTADOS: Record<string, [string, string]> = { A: ['Activo', 'ok'], B: ['Bloqueado', 'err'], I: ['Inactivo', ''] };
 
@@ -20,6 +21,7 @@ export default function Trabajadores() {
   const [msg, setMsg] = useState('');
   const [imp, setImp] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState('');
+  const [credPara, setCredPara] = useState<any | null>(null);
 
   const credDe = useMemo(() => {
     const m = new Map<string, string>();
@@ -174,6 +176,12 @@ export default function Trabajadores() {
         </form>
       )}
 
+      {credPara && (
+        <AsignarCredencial key={credPara.id}
+          t={{ id: credPara.id, rut: credPara.rut, extranjero: credPara.extranjero, nombre: `${credPara.nombres} ${credPara.apellido_paterno ?? ''}`.trim(), contratista_id: credPara.contratista_id }}
+          onCerrar={() => setCredPara(null)} onAsignada={() => tarj.recargar()} />
+      )}
+
       <div className="fila" style={{ marginBottom: '.8rem' }}>
         <input placeholder="Buscar por RUT, nombre o credencial…" value={filtro} onChange={(e) => setFiltro(e.target.value)} />
         <select value={fEstado} onChange={(e) => setFEstado(e.target.value)} style={{ flex: '0 1 200px' }}>
@@ -215,6 +223,7 @@ export default function Trabajadores() {
                 {esAdmin && (
                   <td className="acciones" style={{ justifyContent: 'flex-end' }}>
                     <button className="chico" onClick={() => { setEdit({ ...t }); setMsg(''); }}>Editar</button>
+                    <button className="chico" onClick={() => { setCredPara(t); window.scrollTo({ top: 0, behavior: 'smooth' }); }} disabled={t.estado === 'B'}>🪪 {credDe.has(t.id) ? 'Cambiar credencial' : 'Asociar credencial'}</button>
                     {credDe.has(t.id) && <button className="chico" onClick={() => liberar(t)}>Liberar credencial</button>}
                   </td>
                 )}

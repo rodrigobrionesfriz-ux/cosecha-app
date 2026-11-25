@@ -8,6 +8,7 @@ import { leerCedula } from '@/lib/cedula';
 import { leerReverso } from '@/lib/mrz';
 import { celularVisible, excelIngresos, fechaCorta, Ficha, pdfIngresos } from '@/lib/ingresos';
 import CapturaQR from '@/components/CapturaQR';
+import AsignarCredencial from '@/components/AsignarCredencial';
 
 const PARENTESCOS = ['Madre', 'Padre', 'Cónyuge', 'Pareja', 'Hijo(a)', 'Hermano(a)', 'Abuelo(a)', 'Tío(a)', 'Amigo(a)', 'Otro'];
 const PROPIO = 'propio';
@@ -203,6 +204,8 @@ function Formulario({ inicial, rutInicial, contratistas, onNuevo }: { inicial: F
   // Viene de "Completar ficha" (trabajador registrado en campo)
   useEffect(() => { if (rutInicial && !inicial) { setF((x) => ({ ...x, rut: formatearRut(rutInicial) })); buscarExistente(rutInicial); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [credAbierta, setCredAbierta] = useState(false);
+  const [credCodigo, setCredCodigo] = useState<string | null>(null);
   const imprimir = () => guardado && window.open(`/admin/ingresos/imprimir/?id=${guardado}`, '_blank');
 
   return (
@@ -306,8 +309,17 @@ function Formulario({ inicial, rutInicial, contratistas, onNuevo }: { inicial: F
         <button type="button" className="grande" onClick={imprimir} disabled={!guardado || cambios} title={!guardado ? 'Guarda el ingreso primero' : cambios ? 'Guarda los cambios primero' : ''}>
           🖨️ Imprimir IRL y Reglamento Interno
         </button>
+        <button type="button" className={`grande ${credCodigo ? '' : 'btn-cred'}`} onClick={() => setCredAbierta(true)} disabled={!guardado || cambios} title={!guardado ? 'Guarda el ingreso primero' : cambios ? 'Guarda los cambios primero' : ''}>
+          🪪 {credCodigo ? `Credencial ${credCodigo}` : 'Asignar credencial de cosechero'}
+        </button>
         <button type="button" onClick={onNuevo}>Nuevo ingreso</button>
       </div>
+      {credAbierta && guardado && (
+        <AsignarCredencial
+          t={{ id: guardado, rut: f.extranjero ? f.rut.trim().toUpperCase() : normalizarRut(f.rut), extranjero: f.extranjero,
+               nombre: `${f.nombres} ${f.apellido_paterno}`.trim(), contratista_id: f.contratista === PROPIO ? null : f.contratista || null }}
+          onCerrar={() => setCredAbierta(false)} onAsignada={(c) => setCredCodigo(c || null)} />
+      )}
     </form>
   );
 }
@@ -324,6 +336,9 @@ function Listado({ contratistas, onEditar, onCompletar }: { contratistas: any[];
   const [filas, setFilas] = useState<Ficha[]>([]);
   const [cargando, setCargando] = useState(true);
   const [ocupado, setOcupado] = useState('');
+  const tarj = useTabla<any>('tarjetas', 'codigo,trabajador_id', 'codigo', (q) => q.eq('estado', 'asignada').eq('tipo', 'W'));
+  const credDe = useMemo(() => new Map(tarj.filas.map((x) => [x.trabajador_id, x.codigo] as [string, string])), [tarj.filas]);
+  const [credPara, setCredPara] = useState<Ficha | null>(null);
 
   useEffect(() => {
     setCargando(true);
@@ -371,6 +386,11 @@ function Listado({ contratistas, onEditar, onCompletar }: { contratistas: any[];
         <button onClick={() => exportar('pdf')} disabled={!visibles.length || !!ocupado}>{ocupado === 'pdf' ? 'Generando…' : 'PDF por contratista'}</button>
         <span className="muted">{visibles.length} trabajador(es). El PDF deja una página por contratista con firmas, para la carpeta de prevención.</span>
       </div>
+      {credPara && (
+        <AsignarCredencial key={credPara.trabajador_id}
+          t={{ id: credPara.trabajador_id, rut: credPara.rut, extranjero: credPara.extranjero, nombre: credPara.nombre_completo, contratista_id: credPara.contratista_id }}
+          onCerrar={() => setCredPara(null)} onAsignada={() => tarj.recargar()} />
+      )}
       {pendientes.length > 0 && (
         <details className="alerta aviso sin-ficha">
           <summary>{pendientes.length} trabajador(es) registrados en campo sin ficha de ingreso</summary>
@@ -386,21 +406,23 @@ function Listado({ contratistas, onEditar, onCompletar }: { contratistas: any[];
       )}
       <div className="tabla-wrap">
         <table>
-          <thead><tr><th>Ingreso</th><th>RUT</th><th>Nombre</th><th>Contratista</th><th>Dirección</th><th>Contacto</th><th></th></tr></thead>
+          <thead><tr><th>Ingreso</th><th>RUT</th><th>Nombre</th><th>Contratista</th><th>Credencial</th><th>Dirección</th><th>Contacto</th><th></th></tr></thead>
           <tbody>
-            {cargando && <tr><td colSpan={7} className="muted">Cargando…</td></tr>}
-            {!cargando && !visibles.length && <tr><td colSpan={7} className="muted">Sin ingresos en el período.</td></tr>}
+            {cargando && <tr><td colSpan={8} className="muted">Cargando…</td></tr>}
+            {!cargando && !visibles.length && <tr><td colSpan={8} className="muted">Sin ingresos en el período.</td></tr>}
             {visibles.map((f) => (
               <tr key={f.id}>
                 <td>{fechaCorta(f.fecha_ingreso)}</td>
                 <td className="mono">{f.extranjero ? f.rut : formatearRut(f.rut)}</td>
                 <td>{f.nombre_completo}{f.cedula_vencimiento && f.cedula_vencimiento < hoyISO() && <> <span className="badge err">carnet vencido</span></>}</td>
                 <td>{f.contratista}</td>
+                <td className="mono">{credDe.get(f.trabajador_id) ?? <span className="muted">—</span>}</td>
                 <td>{[f.direccion, f.comuna].filter(Boolean).join(', ')}</td>
                 <td>{f.contacto_nombre}{f.contacto_parentesco ? ` (${f.contacto_parentesco})` : ''}<br /><span className="muted">{celularVisible(f.contacto_celular)}</span></td>
                 <td className="acciones" style={{ justifyContent: 'flex-end' }}>
                   <button className="chico" onClick={() => onEditar(f)}>Editar</button>
                   <button className="chico" onClick={() => window.open(`/admin/ingresos/imprimir/?id=${f.trabajador_id}`, '_blank')}>🖨️ IRL y RIOHS</button>
+                  <button className="chico" onClick={() => { setCredPara(f); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>🪪 {credDe.has(f.trabajador_id) ? 'Cambiar credencial' : 'Asociar credencial'}</button>
                 </td>
               </tr>
             ))}
