@@ -20,14 +20,22 @@ jobs:
       BUCKET: ${{ secrets.FIREBASE_BUCKET }}
     steps:
       - name: Revisar configuración
+        id: config
         run: |
           faltan=""
           [ -z "$SUPABASE_DB_URL" ] && faltan="$faltan SUPABASE_DB_URL"
           [ -z "$BUCKET" ] && faltan="$faltan FIREBASE_BUCKET"
           [ -z "${{ secrets.FIREBASE_SA_KEY }}" ] && faltan="$faltan FIREBASE_SA_KEY"
-          if [ -n "$faltan" ]; then echo "::error::Faltan secretos en GitHub:$faltan (ver docs/RESPALDO.md)"; exit 1; fi
+          if [ -n "$faltan" ]; then
+            # Mientras no esté configurado, no falla (evita correos diarios); solo deja el aviso
+            echo "::warning::Respaldo no configurado todavía. Faltan secretos en GitHub:$faltan (ver docs/RESPALDO.md)"
+            echo "listo=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "listo=si" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Instalar cliente PostgreSQL 17
+        if: steps.config.outputs.listo == 'si'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-common
@@ -36,6 +44,7 @@ jobs:
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
       - name: Sacar copia de la base
+        if: steps.config.outputs.listo == 'si'
         run: |
           set -euo pipefail
           FECHA=$(TZ=America/Santiago date +%F_%H%M)
@@ -53,14 +62,17 @@ jobs:
           ls -lh respaldo
 
       - name: Conectar con Firebase (Google Cloud)
+        if: steps.config.outputs.listo == 'si'
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SA_KEY }}
 
       - name: Instalar gcloud
+        if: steps.config.outputs.listo == 'si'
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Subir a Firebase Storage
+        if: steps.config.outputs.listo == 'si'
         run: |
           set -euo pipefail
           gcloud storage cp respaldo/* "gs://$BUCKET/respaldos/$FECHA/"
@@ -68,6 +80,7 @@ jobs:
           cat respaldo/conteo_$FECHA.csv | sed 's/;/: /' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Borrar respaldos de más de 60 días
+        if: steps.config.outputs.listo == 'si'
         run: |
           cat > ciclo.json <<'JSON'
           { "rule": [ { "action": { "type": "Delete" }, "condition": { "age": 60, "matchesPrefix": ["respaldos/"] } } ] }
