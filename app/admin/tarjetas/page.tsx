@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { useTabla, errorAmigable } from '@/lib/datos';
-import { fechaCL, normalizarCodigo, num } from '@/lib/util';
+import { beep, completarCodigo, fechaCL, normalizarCodigo, num, tipoCodigo, vibrar } from '@/lib/util';
+import CapturaQR from '@/components/CapturaQR';
 
 const TIPOS: Record<string, string> = { W: 'Credencial trabajador', B: 'Etiqueta de caja', L: 'Etiqueta de bin' };
 
@@ -18,6 +19,8 @@ export default function Tarjetas() {
   const [importar, setImportar] = useState('');
   const [tipoImp, setTipoImp] = useState<'W' | 'B' | 'L'>('W');
   const [buscar, setBuscar] = useState('');
+  const [escaneando, setEscaneando] = useState(false);
+  const [ultimo, setUltimo] = useState('');
   const [hallada, setHallada] = useState<any | null | undefined>(undefined);
   const esAdmin = perfil?.rol === 'admin';
 
@@ -34,7 +37,9 @@ export default function Tarjetas() {
   }
 
   async function hacerImportacion() {
-    const codigos = importar.split(/[\s,;]+/).map(normalizarCodigo).filter(Boolean);
+    const codigos = [...new Set(importar.split(/[\s,;]+/).filter(Boolean).map((c) => completarCodigo(c, tipoImp)))];
+    const malos = codigos.filter((c) => tipoCodigo(c) !== tipoImp);
+    if (malos.length) { alert(`Estos códigos no son del tipo elegido:\n${malos.slice(0, 10).join('\n')}`); return; }
     if (!codigos.length) return;
     setOcupado(true);
     const { data, error } = await supabase.rpc('importar_tarjetas', { p_tipo: tipoImp, p_codigos: codigos, p_descripcion: 'Importación de códigos existentes' });
@@ -110,6 +115,28 @@ export default function Tarjetas() {
                 <option value="L">Etiquetas de bin</option>
               </select>
             </div>
+            <p className="muted" style={{ margin: '.3rem 0' }}>
+              Sirven también las credenciales de HubCrop (su QR trae BC-W- y el número impreso). Puedes pegar solo el número de abajo del QR.
+            </p>
+            {!escaneando
+              ? <button type="button" onClick={() => { setEscaneando(true); setUltimo(''); }} style={{ marginBottom: '.6rem' }}>📷 Escanear tarjetas una tras otra</button>
+              : <div style={{ marginBottom: '.6rem' }}>
+                  <CapturaQR etiqueta="Escaneando…" ayuda="Pasa las tarjetas una a una frente a la cámara" alto={220} onScan={(x) => {
+                    const c = completarCodigo(x, tipoImp);
+                    if (tipoCodigo(c) !== tipoImp) { beep(false); setUltimo(`✗ ${c} no es del tipo elegido`); return false; }
+                    const lista = importar.split(/[\s,;]+/).filter(Boolean).map((z) => completarCodigo(z, tipoImp));
+                    if (lista.includes(c)) { setUltimo(`Ya estaba: ${c}`); return false; }
+                    beep(true); vibrar(40);
+                    setImportar((v) => (v.trim() ? v.trim() + '\n' : '') + c);
+                    setUltimo(`✓ ${c}`);
+                    return false; // sigue leyendo
+                  }} />
+                  <div className="acciones" style={{ marginTop: '.4rem' }}>
+                    <span className="mono">{ultimo}</span>
+                    <button type="button" className="chico" onClick={() => setEscaneando(false)}>Terminar</button>
+                  </div>
+                </div>}
+            <div className="muted" style={{ fontSize: '.85rem' }}>{importar.split(/[\s,;]+/).filter(Boolean).length} código(s) en la lista</div>
             <textarea rows={4} value={importar} onChange={(e) => setImportar(e.target.value)} placeholder={'BC-W-000000000000000123\nBC-W-000000000000000124'} />
             <div style={{ marginTop: '.6rem' }}><button onClick={hacerImportacion} disabled={ocupado || !importar.trim()}>Importar</button></div>
           </div>

@@ -53,6 +53,11 @@ export function tipoCodigo(texto: string): TipoCodigo | null {
 export function normalizarCodigo(texto: string): string {
   return (texto || '').trim().toUpperCase();
 }
+/** Acepta el código completo o solo el número impreso bajo el QR (ej. credenciales HubCrop 202103101527031836) */
+export function completarCodigo(texto: string, tipo: TipoCodigo): string {
+  const c = normalizarCodigo(texto).replace(/\s+/g, '');
+  return /^[0-9]{6,32}$/.test(c) ? `BC-${tipo}-${c}` : c;
+}
 
 // ---------- Fechas (hora de Chile) ----------
 export function hoyISO(d = new Date()): string {

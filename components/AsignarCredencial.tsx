@@ -2,14 +2,14 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { cargarTabla, errorAmigable } from '@/lib/datos';
-import { beep, normalizarCodigo, tipoCodigo, uuid, vibrar } from '@/lib/util';
+import { beep, completarCodigo, tipoCodigo, uuid, vibrar } from '@/lib/util';
 import CapturaQR from '@/components/CapturaQR';
 
 export type TrabajadorCred = { id: string; rut: string; extranjero?: boolean; nombre: string; contratista_id?: string | null };
 
 const MENSAJES: Record<string, string> = {
   RI: 'RUT inválido.',
-  CI: 'Esa credencial no existe o está anulada. Revisa que sea una credencial QR generada en Tarjetas QR.',
+  CI: 'Esa credencial no existe o está anulada. Revisa que esté generada o registrada en Tarjetas QR (las de HubCrop se registran ahí escaneándolas).',
   TN: 'El trabajador no está registrado.',
   TB: 'El trabajador está bloqueado. No se le puede asignar credencial.',
 };
@@ -34,7 +34,7 @@ export default function AsignarCredencial({ t, onCerrar, onAsignada }: { t: Trab
   useEffect(() => { cargarActual(); }, [t.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function asignar(cod: string, forzar = false) {
-    const c = normalizarCodigo(cod);
+    const c = completarCodigo(cod, 'W');
     if (tipoCodigo(c) !== 'W') { setAviso({ t: 'error', m: 'Ese código no es una credencial de trabajador (debe empezar con BC-W-).' }); beep(false); return false; }
     if (c === actual) { setAviso({ t: 'ok', m: `${c} ya es la credencial de ${t.nombre}.` }); return true; }
     // ¿la credencial ya es de otra persona?
@@ -100,7 +100,7 @@ export default function AsignarCredencial({ t, onCerrar, onAsignada }: { t: Trab
         ? <CapturaQR etiqueta={actual ? 'Escanear credencial nueva' : 'Escanear credencial QR'} ayuda="Apunta al QR de la credencial que le vas a entregar" onScan={(x) => { asignar(x); return true; }} alto={220} />
         : <button type="button" onClick={() => { setCamara(true); setAviso(null); }}>📷 {actual ? 'Cambiar credencial' : 'Escanear credencial'}</button>}
       <div className="fila" style={{ marginTop: '.6rem', alignItems: 'flex-end' }}>
-        <div className="campo" style={{ marginBottom: 0 }}><label>O escribe el código</label><input className="mono" value={codigo} placeholder="BC-W-0100000001" onChange={(e) => setCodigo(e.target.value.toUpperCase())} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); asignar(codigo); } }} /></div>
+        <div className="campo" style={{ marginBottom: 0 }}><label>O escribe el código</label><input className="mono" value={codigo} placeholder="BC-W-0100000001 o el número impreso" onChange={(e) => setCodigo(e.target.value.toUpperCase())} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); asignar(codigo); } }} /></div>
         <button type="button" className="primario" style={{ flex: '0 0 auto' }} disabled={!codigo || ocupado} onClick={() => asignar(codigo)}>Asignar</button>
       </div>
       {aviso && (
