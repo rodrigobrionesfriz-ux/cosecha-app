@@ -51,6 +51,13 @@ jobs:
           if printf '%s' "$URL" | grep -q 'YOUR-PASSWORD'; then echo "::error::SUPABASE_DB_URL todavía tiene [YOUR-PASSWORD]: reemplázalo por la clave de la base"; exit 1; fi
           case "$host" in *pooler.supabase.com) ;; *) echo "::warning::El servidor no es el Session pooler (*.pooler.supabase.com); desde GitHub puede no conectar" ;; esac
           echo "SUPABASE_DB_URL=$URL" >> "$GITHUB_ENV"
+          # Bucket: sin gs://, espacios, saltos de línea, comillas ni / al final
+          B=$(printf '%s' "$BUCKET" | tr -d '\r\n\t "'"'"'' | sed -e 's#^gs://##' -e 's#/.*$##')
+          if ! printf '%s' "$B" | grep -Eq '^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$'; then
+            echo "::error::FIREBASE_BUCKET no es un nombre de bucket válido (largo ${#B}). Debe ser como qsecha-respaldo.firebasestorage.app"; exit 1
+          fi
+          echo "Bucket: largo ${#B}, termina en .${B##*.}"
+          echo "BUCKET=$B" >> "$GITHUB_ENV"
 
       - name: Instalar cliente PostgreSQL 17
         if: steps.config.outputs.listo == 'si'
