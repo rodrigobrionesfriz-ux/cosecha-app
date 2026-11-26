@@ -34,6 +34,24 @@ jobs:
             echo "listo=si" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Validar conexión de Supabase
+        if: steps.config.outputs.listo == 'si'
+        run: |
+          # Limpia espacios, saltos de línea y comillas que suelen colarse al pegar
+          URL=$(printf '%s' "$SUPABASE_DB_URL" | tr -d '\r\n' | sed -e 's/^[[:space:]"'"'"']*//' -e 's/[[:space:]"'"'"']*$//')
+          echo "::add-mask::$URL"
+          esquema=$(printf '%s' "$URL" | cut -c1-13)
+          host=$(printf '%s' "$URL" | sed -n 's#^[^@]*@\([^:/?]*\).*#\1#p')
+          usuario=$(printf '%s' "$URL" | sed -n 's#^postgres[a-z]*://\([^:@]*\).*#\1#p')
+          echo "Largo: ${#URL} caracteres · empieza con: ${esquema%%//*}// · usuario: ${usuario:-?} · servidor: ${host:-?}"
+          case "$URL" in
+            postgresql://*|postgres://*) ;;
+            *) echo "::error::SUPABASE_DB_URL debe empezar con postgresql:// (copia la línea completa de Session pooler en Supabase > Connect)"; exit 1 ;;
+          esac
+          if printf '%s' "$URL" | grep -q 'YOUR-PASSWORD'; then echo "::error::SUPABASE_DB_URL todavía tiene [YOUR-PASSWORD]: reemplázalo por la clave de la base"; exit 1; fi
+          case "$host" in *pooler.supabase.com) ;; *) echo "::warning::El servidor no es el Session pooler (*.pooler.supabase.com); desde GitHub puede no conectar" ;; esac
+          echo "SUPABASE_DB_URL=$URL" >> "$GITHUB_ENV"
+
       - name: Instalar cliente PostgreSQL 17
         if: steps.config.outputs.listo == 'si'
         run: |
