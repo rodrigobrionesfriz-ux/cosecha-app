@@ -1,12 +1,13 @@
 'use client';
 import { useState } from 'react';
 import { cargarTabla, useTabla } from '@/lib/datos';
-import { armarProformas, nombreMes, pdfProforma, rangoMes } from '@/lib/proforma';
+import { armarProformas, nombreMes, numProforma, pdfProforma, rangoMes } from '@/lib/proforma';
+import { supabase } from '@/lib/supabase';
 import { cargarEntregas } from '@/lib/reportes';
 import { hoyISO } from '@/lib/util';
 
 /** Ventana para generar una proforma PDF por contratista: mes, proveedor y una o más variedades */
-export default function GenerarProformas({ empresa, empresaRut, onCerrar }: { empresa: string; empresaRut: string; onCerrar: () => void }) {
+export default function GenerarProformas({ empresa, empresaRut, onCerrar, onEmitidas }: { empresa: string; empresaRut: string; onCerrar: () => void; onEmitidas?: () => void }) {
   const contratistas = useTabla<any>('contratistas', 'id,nombre,rut,activo', 'nombre');
   const variedades = useTabla<any>('variedades', 'id,nombre', 'nombre');
   const [mes, setMes] = useState(hoyISO().slice(0, 7));
@@ -37,11 +38,24 @@ export default function GenerarProformas({ empresa, empresaRut, onCerrar }: { em
       if (!proformas.length) {
         setMsg({ tipo: 'aviso', t: `No hay entregas de contratistas en ${nombreMes(mes)} con esos filtros.` });
       } else {
+        // Aviso si ya hay proformas vigentes del mismo mes para esos contratistas
+        const { data: previas } = await supabase.from('proformas').select('numero,contratista,variedades')
+          .eq('mes', mes).eq('estado', 'emitida').in('contratista_id', proformas.map((p) => p.contratistaId));
+        if (previas?.length && !confirm(`Ya hay proformas vigentes de ${nombreMes(mes)}:\n${previas.map((x) => `N° ${numProforma(x.numero)} · ${x.contratista} · ${x.variedades}`).join('\n')}\n\n¿Emitir nuevas de todas formas? (puedes anular las anteriores en Ver proformas)`)) {
+          setGenerando(false); return;
+        }
+        const nums: string[] = [];
         for (const p of proformas) {
+          const { data, error } = await supabase.rpc('registrar_proforma', { p_datos: p });
+          if (error) throw new Error(error.message);
+          const r = Array.isArray(data) ? data[0] : data;
+          p.numero = Number(r.numero); p.emitida = hoyISO();
+          nums.push(`N° ${numProforma(p.numero)} ${p.contratista}`);
           await pdfProforma(p);
           await new Promise((r) => setTimeout(r, 400)); // el navegador descarga uno tras otro
         }
-        setMsg({ tipo: 'ok', t: proformas.length === 1 ? `Proforma de ${proformas[0].contratista} generada.` : `${proformas.length} proformas generadas (un PDF por contratista). Si el navegador pregunta, permite las descargas múltiples.` });
+        onEmitidas?.();
+        setMsg({ tipo: 'ok', t: `${proformas.length === 1 ? 'Proforma emitida' : `${proformas.length} proformas emitidas (un PDF por contratista; si el navegador pregunta, permite las descargas múltiples)`}: ${nums.join(' · ')}. Quedan guardadas en Ver proformas.` });
       }
     } catch (err: any) { setMsg({ tipo: 'error', t: err.message }); }
     setGenerando(false);

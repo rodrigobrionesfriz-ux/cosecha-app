@@ -423,3 +423,6 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
 .chips-sel { display: flex; flex-wrap: wrap; gap: .4rem; }
 .chips-sel button { border-radius: 99px; padding: .35rem .8rem; font-size: .88rem; }
 .chips-sel button.activo { background: var(--verde); border-color: var(--verde); color: #fff; font-weight: 600; }
+.modal.modal-ancho { max-width: 1100px; }
+.fila-anulada td { color: var(--gris); text-decoration: line-through; text-decoration-color: rgba(0,0,0,.25); }
+.fila-anulada td:last-child, .fila-anulada td:nth-last-child(2) { text-decoration: none; }

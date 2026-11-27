@@ -16,7 +16,8 @@ type Montos = { totes: number; kilos: number; pagoTrab: number; comision: number
 export type LineaVariedad = Montos & { variedad: string; pct: string };
 export type LineaDia = Montos & { fecha: string; variedad: string; trabajadores: number };
 export type Proforma = Montos & {
-  empresa: string; empresaRut: string; contratista: string; rut: string; mes: string; variedades: string;
+  empresa: string; empresaRut: string; contratistaId: string; contratista: string; rut: string; mes: string; variedades: string;
+  numero?: number; emitida?: string; // los asigna registrar_proforma() al guardar
   lineas: LineaVariedad[]; dias: LineaDia[]; trabajadores: number; iva: number; total: number; ajustePacking: boolean;
 };
 
@@ -71,7 +72,7 @@ export function armarProformas(filas: Fila[], o: {
     const iva = Math.round(neto * IVA);
     return {
       ...tot, neto, iva, total: neto + iva,
-      empresa: o.empresa, empresaRut: o.empresaRut, contratista: l[0].contratista || 'Contratista', rut: o.rutContratista[cid] || '',
+      empresa: o.empresa, empresaRut: o.empresaRut, contratistaId: cid, contratista: l[0].contratista || 'Contratista', rut: o.rutContratista[cid] || '',
       mes: o.mes, variedades: o.variedadesTxt, trabajadores: new Set(l.map((f) => f.trabajador_id)).size, ajustePacking: ajuste,
       lineas: [...porVar.values()].map(({ _p, ...x }) => ({ ...x, pct: _p.size ? [..._p].map((p) => num(p, 1) + '%').join(' / ') : '0%' })).sort((a, b) => a.variedad.localeCompare(b.variedad)),
       dias: [...porDia.values()].map(({ _t, ...x }) => ({ ...x, trabajadores: _t.size })).sort((a, b) => (a.fecha + a.variedad).localeCompare(b.fecha + b.variedad)),
@@ -84,7 +85,10 @@ const pesos = (n: number) => '$' + num(Math.round(n));
 const kg = (n: number) => num(n, 1);
 type Col<T> = { t: string; w: number; v: (x: T) => string; der?: boolean };
 
-export async function pdfProforma(p: Proforma) {
+export const numProforma = (n?: number) => (n ? String(n).padStart(6, '0') : 'BORRADOR');
+
+/** anulada: agrega una marca de agua ANULADA (para reimprimir una proforma anulada) */
+export async function pdfProforma(p: Proforma, o: { anulada?: boolean } = {}) {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 12;
@@ -99,7 +103,7 @@ export async function pdfProforma(p: Proforma) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
     if (p.empresaRut) doc.text(`RUT ${formatearRut(p.empresaRut)}`, M, 14.5);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
-    doc.text('PROFORMA', W - M, 10, { align: 'right' });
+    doc.text(`PROFORMA N° ${numProforma(p.numero)}`, W - M, 10, { align: 'right' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
     doc.text(`Servicio de cosecha · ${nombreMes(p.mes)}`, W - M, 15, { align: 'right' });
     y = 28;
@@ -159,7 +163,7 @@ export async function pdfProforma(p: Proforma) {
     `Período: ${nombreMes(p.mes)}`,
     `Variedades: ${p.variedades}`,
     `Trabajadores: ${num(p.trabajadores)} · Totes: ${num(p.totes)} · Kilos: ${kg(p.kilos)}${p.ajustePacking ? ' (ajustados a packing)' : ' (estimados)'}`,
-    `Emitida: ${new Date().toLocaleDateString('es-CL')}`,
+    `Emitida: ${p.emitida ? fechaCL(p.emitida) : new Date().toLocaleDateString('es-CL')}`,
   ];
   info.forEach((t) => { doc.text(t, M, y); y += 4.6; });
   y += 2;
@@ -212,9 +216,17 @@ export async function pdfProforma(p: Proforma) {
 
   const n = doc.getNumberOfPages();
   for (let i = 1; i <= n; i++) {
-    doc.setPage(i); doc.setFontSize(7.5); doc.setTextColor(140);
-    doc.text(`${p.contratista} · ${nombreMes(p.mes)} · QSecha`, M, H - 6);
+    doc.setPage(i);
+    if (o.anulada) {
+      const d: any = doc;
+      d.saveGraphicsState(); d.setGState(new d.GState({ opacity: 0.18 }));
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(80); doc.setTextColor(179, 25, 47);
+      doc.text('ANULADA', W / 2, H / 2, { align: 'center', angle: 35 });
+      d.restoreGraphicsState(); doc.setFont('helvetica', 'normal');
+    }
+    doc.setFontSize(7.5); doc.setTextColor(140);
+    doc.text(`Proforma N° ${numProforma(p.numero)} · ${p.contratista} · ${nombreMes(p.mes)} · QSecha`, M, H - 6);
     doc.text(`Página ${i} de ${n}`, W - M, H - 6, { align: 'right' });
   }
-  doc.save(`${nombreArchivo(`Proforma ${p.contratista} ${p.mes}`)}.pdf`);
+  doc.save(`${nombreArchivo(`Proforma ${numProforma(p.numero)} ${p.contratista} ${p.mes}`)}.pdf`);
 }
