@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import GenerarProformas from '@/components/GenerarProformas';
 import { useAuth } from '@/lib/auth';
 import { cargarTabla, useTabla } from '@/lib/datos';
 import { armarInforme, calcularAjustes, excelInforme, pdfInforme, textoPacking, TITULO } from '@/lib/informeDiario';
@@ -26,6 +27,7 @@ export default function InformeDiario() {
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
   const [abierto, setAbierto] = useState<Record<string, boolean>>({});
+  const [proformas, setProformas] = useState(false);
 
   async function cargar() {
     setCargando(true); setError(''); setAviso('');
@@ -92,6 +94,7 @@ export default function InformeDiario() {
       <div className="encabezado">
         <h1>{TITULO}</h1>
         <div className="acciones">
+          <button onClick={() => setProformas(true)}>🧾 Generar proformas</button>
           <button onClick={() => excelInforme(inf)} disabled={!hayDatos}>⬇ Excel</button>
           <button className="primario" onClick={() => pdfInforme(inf)} disabled={!hayDatos}>⬇ PDF</button>
         </div>
@@ -241,6 +244,7 @@ export default function InformeDiario() {
           ))}
         </div>
       )}
+      {proformas && <GenerarProformas empresa={perfil?.empresa?.nombre || ''} empresaRut={perfil?.empresa?.rut || ''} onCerrar={() => setProformas(false)} />}
     </div>
   );
 }

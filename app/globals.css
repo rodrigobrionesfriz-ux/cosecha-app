@@ -420,3 +420,6 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
 .input-packing { width: 120px; text-align: right; padding: .3rem .5rem; }
 .factor-baja { color: var(--cereza-osc); font-weight: 600; }
 .factor-sube { color: var(--verde); font-weight: 600; }
+.chips-sel { display: flex; flex-wrap: wrap; gap: .4rem; }
+.chips-sel button { border-radius: 99px; padding: .35rem .8rem; font-size: .88rem; }
+.chips-sel button.activo { background: var(--verde); border-color: var(--verde); color: #fff; font-weight: 600; }

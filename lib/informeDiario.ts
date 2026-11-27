@@ -107,6 +107,7 @@ export async function excelInforme(inf: Informe) {
   ];
   const hr = XLSX.utils.aoa_to_sheet(resumen);
   hr['!cols'] = [30, 14, 12, 12, 10, 10, 12, 18, 18, 14].map((w) => ({ wch: w }));
+  formatoMiles(XLSX, hr);
   XLSX.utils.book_append_sheet(libro, hr, 'Resumen');
 
   const usados = new Set<string>(['Resumen']);
@@ -124,6 +125,7 @@ export async function excelInforme(inf: Informe) {
     ];
     const h = XLSX.utils.aoa_to_sheet(filas);
     h['!cols'] = [12, 30, 26, 22, 16, 16, 14, 10, 10, 16, 16, 12].map((w) => ({ wch: w }));
+    formatoMiles(XLSX, h);
     let n = g.contratista.replace(/[\\/?*[\]:]/g, ' ').slice(0, 28) || 'Hoja';
     while (usados.has(n)) n = n.slice(0, 26) + '_' + usados.size;
     usados.add(n);
@@ -131,7 +133,16 @@ export async function excelInforme(inf: Informe) {
   }
   XLSX.writeFile(libro, `${archivo(inf)}.xlsx`);
 }
-const round1 = (n: number) => Math.round(n * 10) / 10;
+/** Celda de kilos: número con 1 decimal y separador de miles */
+const round1 = (n: number) => ({ t: 'n', v: Math.round(n * 10) / 10, z: '#,##0.0' });
+/** Resto de números: separador de miles, sin decimales */
+export function formatoMiles(XLSX: any, hoja: any) {
+  const r = XLSX.utils.decode_range(hoja['!ref'] || 'A1');
+  for (let R = r.s.r; R <= r.e.r; R++) for (let C = r.s.c; C <= r.e.c; C++) {
+    const c = hoja[XLSX.utils.encode_cell({ r: R, c: C })];
+    if (c && c.t === 'n' && !c.z) c.z = '#,##0';
+  }
+}
 
 /* ===================== PDF ===================== */
 type Col<T> = { t: string; w: number; v: (x: T) => string; der?: boolean };
