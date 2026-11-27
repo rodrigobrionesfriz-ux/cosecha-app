@@ -25,6 +25,9 @@ const DEF = {
 
 const pesos = (n: number) => '$' + n.toLocaleString('es-CL');
 
+/** Pago al cosechero de contratista: si no se define, igual al de propios */
+const valorContr = (f: any) => Number(f.valor_contratista ?? f.valor) || 0;
+
 export default function Config() {
   const { perfil } = useAuth();
   const huertos = useTabla<any>('huertos', 'id,nombre', 'orden');
@@ -146,16 +149,17 @@ export default function Config() {
       )}
 
       <Crud tabla="tarifas" titulo="Tarifas de pago por envase" orden="vigente_desde"
-        ayuda="Ingresa lo que recibe el cosechero por envase (ej. $1.800). El % de recargo se calcula sobre ese valor y se paga al contratista (ej. 65% de $1.800 = $1.170), solo para trabajadores con contratista. Si una tarifa no tiene calidad, aplica a todas. Se usa la tarifa vigente más reciente a la fecha de la entrega."
+        ayuda="Ingresa lo que recibe el cosechero por envase según su forma de contratación: propio / interno y de contratista (ej. $1.800). Si el pago de contratista queda vacío se usa el mismo de los propios. El % de recargo se calcula sobre el pago al cosechero de contratista y se paga al contratista (ej. 65% de $1.800 = $1.170). Si una tarifa no tiene calidad, aplica a todas. Se usa la tarifa vigente más reciente a la fecha de la entrega."
         calculadas={[
-          { t: 'Contratista $/envase', fn: (f) => pesos(Math.round((Number(f.valor) || 0) * (Number(f.porcentaje_contratista) || 0) / 100)) },
-          { t: 'Total $/envase', fn: (f) => pesos(Math.round((Number(f.valor) || 0) * (1 + (Number(f.porcentaje_contratista) || 0) / 100))) },
+          { t: 'Recargo contratista $/envase', fn: (f) => pesos(Math.round(valorContr(f) * (Number(f.porcentaje_contratista) || 0) / 100)) },
+          { t: 'Total contratista $/envase', fn: (f) => pesos(Math.round(valorContr(f) * (1 + (Number(f.porcentaje_contratista) || 0) / 100))) },
         ]}
         campos={[
           { k: 'envase_id', t: 'Envase', tipo: 'select', opciones: op(envases.filas), req: true },
           { k: 'calidad_id', t: 'Calidad', tipo: 'select', opciones: op(calidades.filas) },
           { k: 'especie_id', t: 'Especie', tipo: 'select', opciones: op(especies.filas) },
-          { k: 'valor', t: 'Pago cosechero $/envase', tipo: 'number', req: true, ancho: 170 },
+          { k: 'valor', t: 'Pago cosechero propio $/envase', tipo: 'number', req: true, ancho: 170 },
+          { k: 'valor_contratista', t: 'Pago cosechero contratista $/envase', tipo: 'number', ancho: 190 },
           { k: 'porcentaje_contratista', t: 'Recargo contratista %', tipo: 'number', req: true, ancho: 160, def: 65 },
           { k: 'vigente_desde', t: 'Vigente desde (AAAA-MM-DD)', req: true, ancho: 200, def: new Date().toISOString().slice(0, 10) },
         ]} />
