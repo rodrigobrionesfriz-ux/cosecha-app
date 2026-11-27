@@ -4,12 +4,16 @@ import QRCode from 'qrcode';
 import { cargarTabla } from '@/lib/datos';
 import { useAuth } from '@/lib/auth';
 import { formatearRut } from '@/lib/util';
+import { logoUrl } from '@/lib/empresa';
+
+const ESLOGAN = ['COSECHA', '+TRANSPARENTE'];
 
 type Item = { codigo: string; tipo: string; numero?: number; nombre?: string; rut?: string; qr?: string };
 
 // Formatos de impresión
 const FORMATOS: Record<string, { t: string; w: number; h: number; page: string; cols: number; rows: number; margen: number; tipos: string }> = {
-  credencial: { t: 'Credencial 85×54 mm (10 por hoja A4)', w: 85.6, h: 54, page: 'A4', cols: 2, rows: 5, margen: 10, tipos: 'W' },
+  credencialv: { t: 'Credencial vertical PVC 54×86 mm (9 por hoja A4)', w: 54, h: 85.6, page: 'A4', cols: 3, rows: 3, margen: 10, tipos: 'W' },
+  credencial: { t: 'Credencial horizontal 85×54 mm (10 por hoja A4)', w: 85.6, h: 54, page: 'A4', cols: 2, rows: 5, margen: 10, tipos: 'W' },
   tarjabin: { t: 'Tarja de bin 95×65 mm (8 por hoja A4)', w: 95, h: 65, page: 'A4', cols: 2, rows: 4, margen: 10, tipos: 'L' },
   tarjabingrande: { t: 'Tarja de bin grande 190×130 mm (2 por hoja A4)', w: 190, h: 130, page: 'A4', cols: 1, rows: 2, margen: 10, tipos: 'L' },
   termica5840bin: { t: 'Térmica 58×40 mm · tarja de bin', w: 58, h: 40, page: '58mm 40mm', cols: 1, rows: 1, margen: 0, tipos: 'L' },
@@ -18,7 +22,7 @@ const FORMATOS: Record<string, { t: string; w: number; h: number; page: string; 
   termica5030: { t: 'Impresora térmica rollo 50×30 mm', w: 50, h: 30, page: '50mm 30mm', cols: 1, rows: 1, margen: 0, tipos: 'WB' },
   termica4030: { t: 'Impresora térmica rollo 40×30 mm', w: 40, h: 30, page: '40mm 30mm', cols: 1, rows: 1, margen: 0, tipos: 'WB' },
 };
-const DEFECTO: Record<string, string> = { W: 'credencial', B: 'etiqueta', L: 'tarjabin' };
+const DEFECTO: Record<string, string> = { W: 'credencialv', B: 'etiqueta', L: 'tarjabin' };
 const claveFormato = (tipo?: string) => 'cosecha-formato-imp-' + (tipo || 'W');
 /** Número corto del bin para leer a distancia: correlativo o últimos dígitos del código */
 const numeroBin = (it: Item) => String(it.numero ?? Number(it.codigo.replace(/\D/g, '').slice(-6)));
@@ -127,6 +131,8 @@ export default function Imprimir() {
   }, [items, porHoja]);
 
   const empresa = perfil?.empresa?.nombre?.replace('Sociedad Agrícola y Forestal ', '').replace(' Ltda.', '') || '';
+  const logoEmpresa = logoUrl(perfil?.empresa);
+  const nombreEmpresa = perfil?.empresa?.nombre_corto || empresa;
   const esTermica = formato.startsWith('termica');
   const esBin = items[0]?.tipo === 'L';
   const tipoActual = items[0]?.tipo || 'W';
@@ -148,6 +154,23 @@ export default function Imprimir() {
         .cred .rut { font-size:9pt; margin-top:1mm; }
         .cred .linea { border-bottom:0.3mm solid #999; height:6mm; margin-bottom:1.5mm; }
         .cred .cod { font-family: ui-monospace, monospace; font-size:7pt; color:#333; margin-top:2mm; word-break:break-all; }
+        .credv { display:flex; flex-direction:column; align-items:center; font-family: system-ui, Arial, sans-serif; padding:0 4mm; box-sizing:border-box; border-radius:3.2mm; }
+        .credv .ojal { width:13mm; height:2.6mm; border:0.3mm solid #bbb; border-radius:1.3mm; margin-top:3mm; flex:none; }
+        .credv .marca { display:flex; align-items:center; gap:2mm; margin-top:2.6mm; }
+        .credv .marca img { width:10mm; height:10mm; }
+        .credv .qs { font-size:17pt; font-weight:900; color:#b3192f; line-height:.95; } .credv .qs span { color:#1f4a27; }
+        .credv .sub { font-size:5.6pt; color:#4a6b3a; letter-spacing:.3pt; }
+        .credv .nombre { width:42mm; border-bottom:0.3mm solid #333; height:6mm; margin-bottom:2.2mm; font-size:7.5pt; font-weight:700; text-align:center; display:flex; align-items:flex-end; justify-content:center; line-height:1.05; overflow:hidden; }
+        .credv .centro { display:flex; align-items:center; gap:1.2mm; margin-left:-4mm; }
+        .credv .vert { writing-mode:vertical-rl; transform:rotate(180deg); font-size:7pt; letter-spacing:.6pt; color:#222; }
+        .credv .qr { width:31mm; height:31mm; image-rendering: pixelated; }
+        .credv .num { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:8.4pt; margin-top:1.4mm; white-space:nowrap; }
+        .credv .slo { text-align:center; margin-top:2mm; line-height:1; }
+        .credv .s1 { font-size:13pt; font-weight:900; color:#2f7d32; }
+        .credv .s2 { font-size:10pt; font-weight:700; color:#b3192f; margin-top:.5mm; }
+        .credv .emp { position:absolute; bottom:2.6mm; left:6mm; right:6mm; border-top:0.2mm solid #ccc; padding-top:1mm; text-align:center; font-size:6.5pt; font-weight:700; color:#1f4a27; letter-spacing:.4pt; height:6mm; display:flex; align-items:center; justify-content:center; }
+        .credv .emp img { max-height:6mm; max-width:36mm; object-fit:contain; }
+        @media print { .credv * { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
         .soloqr { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:1mm 0 0.8mm; font-family: ui-monospace, Menlo, Consolas, monospace; }
         .soloqr img { height:${f.h - 7.5}mm; width:${f.h - 7.5}mm; image-rendering: pixelated; }
         .soloqr .cod { font-size:8pt; font-weight:700; letter-spacing:0.2pt; margin-top:0.8mm; color:#000; white-space:nowrap; }
@@ -194,7 +217,7 @@ export default function Imprimir() {
               {Object.entries(FORMATOS).filter(([, v]) => v.tipos.includes(tipoActual)).map(([k, v]) => <option key={k} value={k}>{v.t}</option>)}
             </select>
           </div>
-          {items[0]?.tipo === 'W' && formato === 'credencial' && (
+          {items[0]?.tipo === 'W' && (formato === 'credencial' || formato === 'credencialv') && (
             <label className="check" style={{ flex: '0 1 auto' }}>
               <input type="checkbox" checked={conNombre} onChange={(e) => setConNombre(e.target.checked)} /> Imprimir nombre si está asignada
             </label>
@@ -250,6 +273,19 @@ export default function Imprimir() {
               <div className="item soloqr" key={it.codigo}>
                 <img src={it.qr} alt={it.codigo} />
                 <div className="cod">{it.codigo}</div>
+              </div>
+            ) : formato === 'credencialv' ? (
+              <div className="item credv" key={it.codigo}>
+                <div className="ojal" />
+                <div className="marca">
+                  <img src="/logo.svg" alt="QSecha" />
+                  <div><div className="qs">Q<span>Secha</span></div><div className="sub">Control de cosecha</div></div>
+                </div>
+                <div className="nombre">{conNombre && it.nombre ? it.nombre : ''}</div>
+                <div className="centro"><div className="vert">ID TRABAJADOR</div><img className="qr" src={it.qr} alt={it.codigo} /></div>
+                <div className="num">{it.codigo}</div>
+                <div className="slo"><div className="s1">{ESLOGAN[0]}</div><div className="s2">{ESLOGAN[1]}</div></div>
+                <div className="emp">{logoEmpresa ? <img src={logoEmpresa} alt={nombreEmpresa} /> : nombreEmpresa.toUpperCase()}</div>
               </div>
             ) : formato === 'credencial' ? (
               <div className="item cred" key={it.codigo}>
