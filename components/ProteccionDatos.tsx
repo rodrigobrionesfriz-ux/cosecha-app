@@ -3,6 +3,7 @@ import { MutableRefObject, useCallback, useEffect, useRef, useState } from 'reac
 import { subirPendientes } from '@/lib/offline';
 import { descargarRespaldo, EstadoAlmacen, nivelAntiguedad, pedirPersistencia, pendienteMasAntiguo } from '@/lib/proteccion';
 import { horaCorta } from '@/lib/util';
+import { verificarAdmin } from '@/lib/equipo';
 
 const CADA_MS = 3 * 60 * 1000; // revisa cada 3 minutos si hay algo por subir y señal
 
@@ -87,5 +88,38 @@ export function PanelProteccion({ almacen, pendientes, empresaId, nombre }: { al
       {!pendientes && <p className="muted" style={{ fontSize: '.82rem', marginBottom: 0 }}>No hay nada pendiente: todo está en la nube.</p>}
       {msg && <div className={`alerta ${msg.t}`} style={{ marginTop: '.6rem' }}>{msg.m}</div>}
     </div>
+  );
+}
+
+/**
+ * Para jefes y operadores: la protección de datos queda oculta tras la clave de un administrador
+ * (se explica en la inducción). Así, en una emergencia, el administrador puede sacar el respaldo
+ * desde el mismo teléfono.
+ */
+export function ProteccionAdmin(props: { almacen: EstadoAlmacen | null; pendientes: number; empresaId: string; nombre: string; esAdmin: boolean }) {
+  const [ok, setOk] = useState(false);
+  const [email, setEmail] = useState('');
+  const [clave, setClave] = useState('');
+  const [error, setError] = useState('');
+  const [verificando, setVerificando] = useState(false);
+  if (props.esAdmin || ok) return <PanelProteccion {...props} />;
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    setVerificando(true); setError('');
+    const err = await verificarAdmin(email, clave, props.empresaId);
+    setVerificando(false); setClave('');
+    if (err) { setError(err); return; }
+    setOk(true);
+  }
+  return (
+    <details style={{ marginTop: '1rem' }}>
+      <summary className="muted" style={{ fontSize: '.85rem' }}>Herramientas de administración</summary>
+      <form onSubmit={enviar} style={{ marginTop: '.5rem' }}>
+        <div className="campo"><label>Correo de administrador</label><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" /></div>
+        <div className="campo"><label>Clave</label><input type="password" required value={clave} onChange={(e) => setClave(e.target.value)} autoComplete="off" /></div>
+        {error && <div className="alerta error">{error}</div>}
+        <button className="chico" disabled={verificando}>{verificando ? 'Verificando…' : 'Entrar'}</button>
+      </form>
+    </details>
   );
 }

@@ -10,7 +10,7 @@ import Armar from '@/components/acopio/Armar';
 import Camara from '@/components/acopio/Camara';
 import Despacho from '@/components/acopio/Despacho';
 import Sync from '@/components/campo/Sync';
-import { AvisoAntiguedad, PanelProteccion, useProteccion } from '@/components/ProteccionDatos';
+import { AvisoAntiguedad, ProteccionAdmin, useProteccion } from '@/components/ProteccionDatos';
 import SeleccionOperador from '@/components/SeleccionOperador';
 import { fijarOperador, Operador, operadorActual } from '@/lib/equipo';
 
@@ -106,7 +106,7 @@ export default function Acopio() {
 
   return (
     <div className="campo-app">
-      <div className={`campo-top ${prot.nivel !== 'ok' ? 'pend-' + prot.nivel : ''}`}>
+      <div className={`campo-top ${prot.nivel !== 'ok' && perfil.rol === 'admin' ? 'pend-' + prot.nivel : ''}`}>
         <div>
           <div className="t">Acopio</div>
           <div className="s">{!perfil.email ? `${op?.nombre ?? 'Sin operador'} · ${perfil.nombre.replace(/^Equipo /, '')}` : perfil.nombre} · {online ? 'en línea' : 'sin señal'}{pendientes ? ` · ${pendientes} por subir` : ''}{prot.subiendo ? ' · subiendo…' : ''}</div>
@@ -120,7 +120,7 @@ export default function Acopio() {
       </div>
 
       <div className="campo-body">
-        {tab !== 'sync' && <AvisoAntiguedad nivel={prot.nivel} desde={prot.pendDesde} online={online} onSync={() => sync(false)} />}
+        {tab !== 'sync' && perfil.rol === 'admin' && <AvisoAntiguedad nivel={prot.nivel} desde={prot.pendDesde} online={online} onSync={() => sync(false)} />}
         {!datosDeHoy(m.ultima_descarga) && tab !== 'sync' && (
           <div className="alerta aviso">
             Los datos del teléfono no son de hoy. Con señal, toca <b>Sincronizar</b> para traer los bins que vienen del campo.
@@ -147,7 +147,7 @@ export default function Acopio() {
         {(perfil.email || op) && tab === 'camara' && conCamara && <Camara m={m} onCambio={recargarLocal} />}
         {(perfil.email || op) && tab === 'despacho' && <Despacho m={m} perfil={perfil} onCambio={recargarLocal} />}
         {tab === 'sync' && <Sync online={online} pendientes={pendientes} sincronizando={sincronizando} ultimo={ultimoSync} ultimaDescarga={m.ultima_descarga} onSync={() => sync(false)} />}
-        {tab === 'sync' && <PanelProteccion almacen={prot.almacen} pendientes={pendientes} empresaId={perfil.empresa_id} nombre={op?.nombre || perfil.nombre} />}
+        {tab === 'sync' && <ProteccionAdmin esAdmin={perfil.rol === 'admin'} almacen={prot.almacen} pendientes={pendientes} empresaId={perfil.empresa_id} nombre={op?.nombre || perfil.nombre} />}
       </div>
 
       <div className="campo-nav">
