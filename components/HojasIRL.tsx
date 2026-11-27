@@ -1,22 +1,30 @@
 import { formatearRut } from '@/lib/util';
 import { Ficha } from '@/lib/ingresos';
+import { Empresa, logoUrl, rutEmpresa } from '@/lib/empresa';
 
 /**
  * IRL (Información de Riesgos Laborales, Art. 15 D.S. 44) y acuse de recibo del
- * Reglamento Interno de Orden, Higiene y Seguridad, según el formato de La Cabaña
- * (IRL_Y_RIOHYS_AGRICOLA_LA_CABAÑA_LIMITADA.docx). Una hoja carta por documento.
+ * Reglamento Interno de Orden, Higiene y Seguridad. Una hoja carta por documento.
+ * Nombres, RUT, logo, encargado de prevención y datos del documento vienen de la
+ * empresa configurada (Configuración → Empresa).
  */
-const EMPRESA_IRL = 'AGRICOLA LA CABAÑA LIMITADA';
-const EMPRESA_RIOHS = 'SOCIEDAD AGRICOLA Y FORESTAL LA CABAÑA LIMITADA';
-const RUT_EMPRESA = '77.684.700-3';
-const ENCARGADO = { cargo: 'FIRMA ENCARGADO DE SEGURIDAD Y SALUD EN EL TRABAJO', nombre: 'MARICELA SCARLET ALARCON DIAZ', registro: 'BB-P 1.061' };
-const DOC = { codigo: 'IRL: MTS', version: '1.0', aprobacion: 'ABRIL 2026' };
-const PIE = `PREVENCION DE RIESGOS – SOC. AGRICOLA LA CABAÑA LIMITADA / ${RUT_EMPRESA}`;
+function datosEmpresa(e?: Empresa | null) {
+  const razon = (e?.nombre || '').toUpperCase();
+  const rut = rutEmpresa(e);
+  const irl = (e?.irl_razon_social || razon).toUpperCase();
+  return {
+    irl, riohs: (e?.riohs_razon_social || razon).toUpperCase(), rut, logo: logoUrl(e),
+    encargado: { cargo: e?.prev_cargo || 'FIRMA ENCARGADO DE SEGURIDAD Y SALUD EN EL TRABAJO', nombre: (e?.prev_nombre || '').toUpperCase(), registro: e?.prev_registro || '' },
+    doc: { codigo: e?.irl_codigo || 'IRL', version: e?.irl_version || '1.0', aprobacion: e?.irl_aprobacion || '' },
+    pie: `PREVENCION DE RIESGOS – ${irl}${rut ? ' / ' + rut : ''}`,
+  };
+}
 
 export type Tipo = 'nuevo' | 'transferido' | 'ausencia';
 
 /** Las dos hojas carta (IRL y acuse del Reglamento) con los datos del trabajador */
-export function HojasIRL({ f, tipo, cargo, llenarRiohs }: { f: Ficha; tipo: Tipo; cargo: string; llenarRiohs: boolean }) {
+export function HojasIRL({ f, tipo, cargo, llenarRiohs, empresa }: { f: Ficha; tipo: Tipo; cargo: string; llenarRiohs: boolean; empresa?: Empresa | null }) {
+  const E = datosEmpresa(empresa);
   const nombre = f.nombre_completo.toUpperCase();
   const rut = f.extranjero ? f.rut : formatearRut(f.rut);
   const [a, m, d] = (f.fecha_ingreso || '').split('-');
@@ -29,13 +37,13 @@ export function HojasIRL({ f, tipo, cargo, llenarRiohs }: { f: Ficha; tipo: Tipo
           <colgroup><col style={{ width: '23%' }} /><col style={{ width: '50%' }} /><col style={{ width: '27%' }} /></colgroup>
           <tbody>
             <tr>
-              <td rowSpan={3} className="c"><img src="/irl/logo-forestal-la-cabana.jpg" alt="Forestal La Cabaña" className="irl-logo" /></td>
+              <td rowSpan={3} className="c">{E.logo ? <img src={E.logo} alt="" className="irl-logo" /> : <b style={{ fontSize: '9pt' }}>{E.irl}</b>}</td>
               <td rowSpan={3} className="c irl-titulo">IRL Información de Riesgos Laborales<br />Art. 15 del D.S. 44</td>
-              <td className="irl-meta">Código: {DOC.codigo}</td>
+              <td className="irl-meta">Código: {E.doc.codigo}</td>
             </tr>
-            <tr><td className="irl-meta">Versión: {DOC.version}</td></tr>
-            <tr><td className="irl-meta">Fecha aprobación: {DOC.aprobacion}</td></tr>
-            <tr><td className="c">IRL: CARGO</td><td className="c">{EMPRESA_IRL}</td><td className="c">{RUT_EMPRESA}</td></tr>
+            <tr><td className="irl-meta">Versión: {E.doc.version}</td></tr>
+            <tr><td className="irl-meta">Fecha aprobación: {E.doc.aprobacion}</td></tr>
+            <tr><td className="c">IRL: CARGO</td><td className="c">{E.irl}</td><td className="c">{E.rut}</td></tr>
           </tbody>
         </table>
 
@@ -66,25 +74,25 @@ export function HojasIRL({ f, tipo, cargo, llenarRiohs }: { f: Ficha; tipo: Tipo
               <td colSpan={6} className="irl-firmas">
                 <div className="irl-firma-trab"><span className="linea" />FIRMA</div>
                 <div className="irl-firma-enc">
-                  <b>{ENCARGADO.cargo}</b>
-                  <b className="sep">{ENCARGADO.nombre}</b>
-                  <b>{ENCARGADO.registro}</b>
+                  <b>{E.encargado.cargo}</b>
+                  <b className="sep">{E.encargado.nombre}</b>
+                  <b>{E.encargado.registro}</b>
                 </div>
               </td>
             </tr>
             <tr className="verde"><td colSpan={6} style={{ height: '5mm' }} /></tr>
           </tbody>
         </table>
-        <footer className="irl-pie"><span>{PIE}</span><span className="pag">1</span></footer>
+        <footer className="irl-pie"><span>{E.pie}</span><span className="pag">1</span></footer>
       </article>
 
       {/* ---------------- Hoja 2: Reglamento Interno ---------------- */}
       <article className="irl-hoja riohs">
-        <div className="riohs-emp">{EMPRESA_RIOHS}</div>
+        <div className="riohs-emp">{E.riohs}</div>
         <div className="riohs-sub">Reglamento de Orden, Higiene y Seguridad.</div>
         <div className="riohs-barra" />
         <h2>CONTROL DE ENTREGA, TOMA DE CONOCIMIENTO Y ACUSO DE RECIBO DEL REGLAMENTO INTERNO DE ORDEN, HIGIENE Y SEGURIDAD</h2>
-        <p>Se deja expresa constancia, de acuerdo a lo establecido en el artículo 156 del Código del Trabajo y D.S 44 de la Ley 16.744 que, he recibido en forma gratuita un ejemplar del Reglamento Interno de Orden, Higiene y Seguridad de <b>{EMPRESA_RIOHS} {RUT_EMPRESA}.</b></p>
+        <p>Se deja expresa constancia, de acuerdo a lo establecido en el artículo 156 del Código del Trabajo y D.S 44 de la Ley 16.744 que, he recibido en forma gratuita un ejemplar del Reglamento Interno de Orden, Higiene y Seguridad de <b>{E.riohs} {E.rut}.</b></p>
         <p>Declaro bajo mi firma haber recibido, leído y comprendido el presente Reglamento Interno de Orden, Higiene y Seguridad, del cual doy fe de conocer el contenido de éste y me hago responsable de su estricto cumplimiento en cada uno de sus artículos, no pudiendo alegar desconocimiento de su texto a contar de esta fecha.</p>
 
         <div className="riohs-campo" style={{ marginTop: '28mm' }}>NOMBRE DEL TRABAJADOR: <span className="riohs-linea larga">{llenarRiohs ? nombre : ''}</span></div>
@@ -100,7 +108,7 @@ export function HojasIRL({ f, tipo, cargo, llenarRiohs }: { f: Ficha; tipo: Tipo
         </div>
         <p className="c" style={{ marginTop: '28mm' }}>(El trabajador debe escribir de su puño y letra).</p>
         <p className="c">Este comprobante se archivará en la Carpeta personal del trabajador.</p>
-        <footer className="irl-pie"><span>{PIE}</span><span className="pag">2</span></footer>
+        <footer className="irl-pie"><span>{E.pie}</span><span className="pag">2</span></footer>
       </article>
     </>
   );

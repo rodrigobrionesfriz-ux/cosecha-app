@@ -436,3 +436,11 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
 .admin nav .sub-menu { margin: 0 0 .3rem .9rem; padding-left: .4rem; border-left: 1px solid rgba(255,255,255,.18); }
 .admin nav .sub-menu a { padding: .45rem .6rem; font-size: .93rem; }
 @media (max-width: 800px) { .admin nav .grupo-menu { padding: .75rem .7rem; font-size: 1rem; } .admin nav .sub-menu a { padding: .65rem .6rem; } }
+/* Empresa */
+.admin nav .empresa .cambiar-emp { display: block; padding: 0; margin-top: .25rem; font-size: .75rem; color: #f3d9a4; text-decoration: underline; }
+.admin nav .empresa .cambiar-emp:hover { background: none; }
+.logo-empresa { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-top: .4rem; }
+.logo-caja { width: 160px; height: 80px; border: 1px dashed var(--borde); border-radius: var(--radio); display: grid; place-items: center; background: #fff; overflow: hidden; }
+.logo-caja img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.boton-archivo { display: inline-block; border: 1px solid var(--borde); border-radius: 8px; padding: .45rem .9rem; background: var(--blanco); cursor: pointer; font-weight: 600; }
+.boton-archivo:hover { border-color: var(--verde); }

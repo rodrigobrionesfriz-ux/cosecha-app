@@ -8,7 +8,7 @@ export default function Inicio() {
   const { session, perfil, cargando, salir } = useAuth();
   const [modo, setModo] = useState<'entrar' | 'registro'>('entrar');
   const [vista, setVista] = useState<'inicio' | 'equipo' | 'admin'>('inicio');
-  const [eq, setEq] = useState({ imei: '', nombre: '', tipo: 'campo' as 'campo' | 'acopio', empresa: '01' });
+  const [eq, setEq] = useState({ imei: '', nombre: '', tipo: 'campo' as 'campo' | 'acopio', empresa: '' });
   const [estadoEq, setEstadoEq] = useState<{ estado: string; nombre: string; tipo: string } | null>(null);
   const [tieneEquipo, setTieneEquipo] = useState(false);
   const [intentoEquipo, setIntentoEquipo] = useState(false);
@@ -155,7 +155,8 @@ export default function Inicio() {
           </div>
           <div className="campo">
             <label>Código de empresa</label>
-            <input inputMode="numeric" value={eq.empresa} onChange={(e) => setEq({ ...eq, empresa: e.target.value })} style={{ maxWidth: 100 }} />
+            <input inputMode="numeric" required placeholder="Ej: 01" value={eq.empresa} onChange={(e) => setEq({ ...eq, empresa: e.target.value })} style={{ maxWidth: 100 }} />
+            <div className="muted" style={{ fontSize: '.8rem', marginTop: '.2rem' }}>Pídeselo al administrador (Configuración → Empresa).</div>
           </div>
           {msg && <div className={`alerta ${msg.t}`}>{msg.m}</div>}
           <button className="primario grande" disabled={enviando}>{enviando ? 'Registrando…' : 'Registrar equipo'}</button>

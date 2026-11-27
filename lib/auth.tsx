@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { CAMPOS_EMPRESA, Empresa } from './empresa';
 
 export type Perfil = {
   user_id: string;
@@ -10,7 +11,8 @@ export type Perfil = {
   email: string;
   rol: 'admin' | 'jefe' | 'consulta' | 'acopio' | 'administrativo';
   activo: boolean;
-  empresa?: { id: string; nombre: string; codigo: number; rut?: string | null };
+  superadmin?: boolean;
+  empresa?: Empresa;
 };
 
 type Ctx = {
@@ -35,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!navigator.onLine && guardado) { setPerfil(JSON.parse(guardado)); return; }
     const { data, error } = await supabase
       .from('perfiles')
-      .select('*, empresa:empresas(id,nombre,codigo,rut)')
+      .select(`*, empresa:empresas(${CAMPOS_EMPRESA})`)
       .eq('user_id', s.user.id)
       .maybeSingle();
     if (error && guardado) { setPerfil(JSON.parse(guardado)); return; }

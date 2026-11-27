@@ -3,9 +3,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cargarTabla } from '@/lib/datos';
 import { Ficha } from '@/lib/ingresos';
 import { HojasIRL, CSS, Tipo } from '@/components/HojasIRL';
+import { useAuth } from '@/lib/auth';
 
 
 export default function ImprimirIRL() {
+  const { perfil } = useAuth();
   const [f, setF] = useState<Ficha | null>(null);
   const [error, setError] = useState('');
   const [tipo, setTipo] = useState<Tipo>('nuevo');
@@ -57,7 +59,7 @@ export default function ImprimirIRL() {
 
       <div className="irl-hojas" ref={caja}>
         <div style={{ zoom: escala } as any}>
-          <HojasIRL f={f} tipo={tipo} cargo={cargo} llenarRiohs={llenarRiohs} />
+          <HojasIRL f={f} tipo={tipo} cargo={cargo} llenarRiohs={llenarRiohs} empresa={perfil?.empresa} />
         </div>
       </div>
     </div>

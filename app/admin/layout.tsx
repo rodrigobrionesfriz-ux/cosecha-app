@@ -11,6 +11,7 @@ const MENU: Item[] = [
   { href: '/admin/trabajadores/', t: 'Trabajadores', i: '👷' },
   { href: '/admin/ingresos/', t: 'Ingreso de personal', i: '📝' },
   { href: '/admin/tarjetas/', t: 'Tarjetas QR', i: '🪪' },
+  { href: '/admin/empresa/', t: 'Empresa', i: '🏢', grupo: 'config' },
   { href: '/admin/maestros/', t: 'Huertos y maestros', i: '🌳', grupo: 'config' },
   { href: '/admin/config/', t: 'Reglas y tarifas', i: '💲', grupo: 'config' },
   { href: '/admin/usuarios/', t: 'Usuarios', i: '👤', grupo: 'config' },
@@ -79,7 +80,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       <nav className={`no-print ${abierto ? 'abierto' : ''}`}>
         <div className="marca solo-escritorio"><img src="/logo.svg" alt="" className="marca-ico" />QSecha</div>
-        <div className="empresa">{perfil.empresa?.nombre}</div>
+        <div className="empresa">{perfil.empresa?.nombre}{perfil.superadmin && <a href="/admin/empresa/" className="cambiar-emp">Cambiar empresa</a>}</div>
         {menu.filter((m) => !m.grupo && !['/campo/', '/acopio/'].includes(m.href)).map(enlace)}
         {menu.some((m) => m.grupo === 'config') && (
           <>
