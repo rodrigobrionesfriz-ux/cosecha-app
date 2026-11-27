@@ -20,6 +20,8 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
   const [cuartel, setCuartel] = useState('');
   const [totes, setTotes] = useState('');
   const cuarteles = m.cuarteles.filter((c) => c.huerto_id === huerto);
+  /** Si el huerto tiene un solo cuartel en cosecha, se elige solo */
+  const unicoCuartel = (h: string) => { const l = m.cuarteles.filter((c) => c.huerto_id === h); return l.length === 1 ? l[0].id : ''; };
   const nombreVariedad = (id?: string | null) => (id ? m.variedades.find((v) => v.id === id)?.nombre || '' : '');
   const [recientes, setRecientes] = useState<{ e: EventoLocal; estado: string | null }[]>([]);
 
@@ -73,8 +75,8 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
     // último huerto; el cuartel se elige mirando la tarja (evita arrastrar el cuartel del bin anterior)
     let ult: { h?: string; c?: string } = {};
     try { ult = JSON.parse(localStorage.getItem('acopio-ultimo-cuartel') || '{}'); } catch {}
-    const h0 = b.servidor?.huerto_id || ult.h || '';
-    const c0 = b.servidor?.cuartel_id || '';
+    const h0 = b.servidor?.huerto_id || (m.huertos.length === 1 ? m.huertos[0].id : '') || ult.h || '';
+    const c0 = b.servidor?.cuartel_id || unicoCuartel(h0);
     setHuerto(m.huertos.some((x) => x.id === h0) ? h0 : '');
     setCuartel(m.cuarteles.some((x) => x.id === c0 && x.huerto_id === h0) ? c0 : '');
     setVerCalidad(exige);
@@ -112,7 +114,7 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
           <div className="fila">
             <div className="campo">
               <label>Huerto *</label>
-              <select value={huerto} onChange={(e) => { setHuerto(e.target.value); setCuartel(''); }}>
+              <select value={huerto} onChange={(e) => { setHuerto(e.target.value); setCuartel(unicoCuartel(e.target.value)); }}>
                 <option value="">Seleccionar…</option>
                 {m.huertos.map((h) => <option key={h.id} value={h.id}>{h.nombre}</option>)}
               </select>
