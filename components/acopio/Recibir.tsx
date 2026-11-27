@@ -20,6 +20,7 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
   const [cuartel, setCuartel] = useState('');
   const [totes, setTotes] = useState('');
   const cuarteles = m.cuarteles.filter((c) => c.huerto_id === huerto);
+  const nombreVariedad = (id?: string | null) => (id ? m.variedades.find((v) => v.id === id)?.nombre || '' : '');
   const [recientes, setRecientes] = useState<{ e: EventoLocal; estado: string | null }[]>([]);
 
   /** Recepciones de hoy hechas en este teléfono, con el estado actual del bin */
@@ -68,15 +69,16 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
     }
     beep(true); vibrar(60);
     setBin(b); setValores({}); setObs(''); setFotos([]); setTotes('');
-    // huerto y cuartel: lo que dice el campo si ya sincronizó; si no, el último usado en acopio
+    // huerto y cuartel: lo que dice el campo si ya sincronizó. Sin datos del campo solo se propone el
+    // último huerto; el cuartel se elige mirando la tarja (evita arrastrar el cuartel del bin anterior)
     let ult: { h?: string; c?: string } = {};
     try { ult = JSON.parse(localStorage.getItem('acopio-ultimo-cuartel') || '{}'); } catch {}
     const h0 = b.servidor?.huerto_id || ult.h || '';
-    const c0 = b.servidor?.cuartel_id || (h0 === ult.h ? ult.c : '') || '';
+    const c0 = b.servidor?.cuartel_id || '';
     setHuerto(m.huertos.some((x) => x.id === h0) ? h0 : '');
     setCuartel(m.cuarteles.some((x) => x.id === c0 && x.huerto_id === h0) ? c0 : '');
     setVerCalidad(exige);
-    setMsg(b.servidor ? null : { t: 'av', titulo: 'Sin datos del campo todavía', detalle: 'Indica huerto y cuartel. Cuando el jefe sincronice, se concilia.' });
+    setMsg(b.servidor ? null : { t: 'av', titulo: 'Sin datos del campo todavía', detalle: 'Elige el cuartel según lo anotado en la tarja del bin. Cuando el jefe sincronice, se concilia.' });
   }
 
   async function recibir() {
@@ -119,10 +121,17 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
               <label>Cuartel *</label>
               <select value={cuartel} onChange={(e) => setCuartel(e.target.value)} disabled={!huerto}>
                 <option value="">Seleccionar…</option>
-                {cuarteles.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                {cuarteles.map((c) => <option key={c.id} value={c.id}>{c.nombre}{nombreVariedad(c.variedad_id) ? ` · ${nombreVariedad(c.variedad_id)}` : ''}</option>)}
               </select>
             </div>
           </div>
+          {cuartel && (
+            <div className={`confirma-variedad ${bin.servidor ? '' : 'sin-campo'}`}>
+              <span className="muted">Variedad</span>
+              <b>{nombreVariedad(m.cuarteles.find((x) => x.id === cuartel)?.variedad_id) || 'Sin variedad'}</b>
+              <span className="muted">{bin.servidor ? 'según el registro de campo' : 'confirma que coincide con la tarja del bin'}</span>
+            </div>
+          )}
           {bin.servidor?.cuartel_id && cuartel && cuartel !== bin.servidor.cuartel_id && (
             <div className="alerta aviso" style={{ marginBottom: 0 }}>El campo registró este bin en <b>{bin.servidor.cuartel}</b>. Si grabas otro cuartel, administración lo revisa.</div>
           )}

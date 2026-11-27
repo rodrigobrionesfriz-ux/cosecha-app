@@ -454,3 +454,8 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
 /* Antigüedad de lo pendiente en la barra superior de campo y acopio */
 .campo-top.pend-aviso { border-bottom-color: #e0a100; box-shadow: inset 0 -4px 0 #e0a100; }
 .campo-top.pend-urgente { background: var(--cereza-osc); border-bottom-color: #ffb3bd; }
+/* Recepción: confirmar variedad contra la tarja */
+.confirma-variedad { display: flex; flex-direction: column; align-items: center; gap: .1rem; margin: .2rem 0 .8rem; padding: .6rem; border-radius: var(--radio); background: var(--verde-claro); border: 1px solid var(--verde); text-align: center; }
+.confirma-variedad b { font-size: 1.5rem; color: var(--verde-osc); }
+.confirma-variedad.sin-campo { background: var(--ambar-claro); border-color: #e0a100; }
+.confirma-variedad.sin-campo b { color: var(--ambar); }
