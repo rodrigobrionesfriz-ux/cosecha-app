@@ -12,6 +12,7 @@ import DiaTab from '@/components/campo/Dia';
 import Credencial from '@/components/campo/Credencial';
 import Resumen from '@/components/campo/Resumen';
 import Sync from '@/components/campo/Sync';
+import { AvisoAntiguedad, PanelProteccion, useProteccion } from '@/components/ProteccionDatos';
 import { eventosRechazados, TEXTO_EVENTO } from '@/lib/bins';
 import type { EventoLocal } from '@/lib/offline';
 
@@ -78,6 +79,9 @@ export default function Campo() {
     syncRef.current = false;
   }, [recargarLocal]);
 
+  // subida automática con señal, almacenamiento persistente y aviso de antigüedad
+  const prot = useProteccion({ syncRef, pendientes, onSubido: recargarLocal });
+
   // carga inicial: solo datos del teléfono (sin descargar nada automáticamente)
   useEffect(() => {
     if (!perfil) return;
@@ -136,10 +140,10 @@ export default function Campo() {
 
   return (
     <div className="campo-app">
-      <div className="campo-top">
+      <div className={`campo-top ${prot.nivel !== 'ok' ? 'pend-' + prot.nivel : ''}`}>
         <div>
           <div className="t">{huerto ? `${huerto.nombre} · ${cuartel?.nombre ?? 'sin cuartel'}` : 'QSecha'}</div>
-          <div className="s">{esEquipo ? `${op?.nombre ?? 'Sin jefe'} · ${perfil.nombre.replace(/^Equipo /, '')}` : perfil.nombre} · {online ? 'en línea' : 'sin señal'}{pendientes ? ` · ${pendientes} por subir` : ''}</div>
+          <div className="s">{esEquipo ? `${op?.nombre ?? 'Sin jefe'} · ${perfil.nombre.replace(/^Equipo /, '')}` : perfil.nombre} · {online ? 'en línea' : 'sin señal'}{pendientes ? ` · ${pendientes} por subir` : ''}{prot.subiendo ? ' · subiendo…' : ''}</div>
         </div>
         <div className="top-acciones">
           {perfil.rol === 'admin' && <a href="/admin/">Panel</a>}
@@ -159,6 +163,7 @@ export default function Campo() {
       </div>
 
       <div className="campo-body">
+        {tab !== 'sync' && <AvisoAntiguedad nivel={prot.nivel} desde={prot.pendDesde} online={online} onSync={() => sync()} />}
         {!m.huertos.length && m.ultima_descarga && (
           <div className="alerta aviso">No hay cuarteles habilitados para cosecha. El administrador debe habilitarlos en el panel (Huertos y maestros → Cuarteles) y luego toca Sincronizar.</div>
         )}
@@ -195,6 +200,7 @@ export default function Campo() {
           <Sync online={online} pendientes={pendientes} sincronizando={sincronizando} ultimo={ultimoSync}
             ultimaDescarga={m.ultima_descarga} paso={pasoSync} onSync={() => sync()} />
         )}
+        {tab === 'sync' && <PanelProteccion almacen={prot.almacen} pendientes={pendientes + deOtros} empresaId={perfil.empresa_id} nombre={op?.nombre || perfil.nombre} />}
       </div>
 
       <div className="campo-nav">

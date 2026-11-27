@@ -33,7 +33,7 @@ export default function Sync({ online, pendientes, sincronizando, ultimo, ultima
   return (
     <div>
       <div className={`alerta ${online ? 'ok' : 'aviso'}`}>
-        {online ? 'Con conexión.' : 'Sin señal. Todo queda guardado en el teléfono; sincroniza cuando tengas cobertura.'}
+        {online ? 'Con conexión.' : 'Sin señal. Todo queda guardado en el teléfono y se sube solo cuando vuelva la cobertura.'}
       </div>
       <div className="kpis" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <div className="kpi"><div className="v">{pendientes}</div><div className="l">Registros por subir</div></div>
@@ -42,7 +42,7 @@ export default function Sync({ online, pendientes, sincronizando, ultimo, ultima
       <button className="primario grande" onClick={onSync} disabled={!online || sincronizando}>
         {sincronizando ? 'Sincronizando…' : 'Sincronizar ahora'}
       </button>
-      <p className="muted" style={{ fontSize: '.88rem' }}>La app no sincroniza sola. Al tocar Sincronizar: 1) sube los registros de cosecha, credenciales y bins, 2) descarga de nuevo trabajadores, contratistas, huertos y cuarteles, 3) trae los cambios hechos en la nube.</p>
+      <p className="muted" style={{ fontSize: '.88rem' }}>Lo registrado se sube solo cada pocos minutos cuando hay señal. Al tocar Sincronizar además: 1) sube lo pendiente, 2) descarga de nuevo trabajadores, contratistas, huertos y cuarteles, 3) trae los cambios hechos en la nube.</p>
       {sincronizando && paso && <div className="alerta info">{paso}</div>}
       {ultimo && <div className={`alerta ${ultimo.ok ? 'ok' : 'error'}`}>{horaCorta(ultimo.cuando)} · {ultimo.msg}</div>}
 

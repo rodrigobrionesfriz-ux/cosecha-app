@@ -18,6 +18,7 @@ const MENU: Item[] = [
   { href: '/admin/usuarios/', t: 'Usuarios', i: '👤', grupo: 'config' },
   { href: '/admin/equipos/', t: 'Equipos', i: '📱', grupo: 'config' },
   { href: '/admin/anulados/', t: 'Anulados y cambios', i: '🗂️', grupo: 'config' },
+  { href: '/admin/respaldo/', t: 'Importar respaldo', i: '💾', grupo: 'config' },
   { href: '/admin/borrado/', t: 'Borrado de datos', i: '🗑️', grupo: 'config' },
   { href: '/campo/', t: 'App de terreno', i: '📱' },
   { href: '/acopio/', t: 'App de acopio', i: '🏭' },
