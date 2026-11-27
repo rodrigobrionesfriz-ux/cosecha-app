@@ -40,7 +40,7 @@ export default function Acopio() {
     const inicio = new Date(hoyISO() + 'T00:00:00-03:00').toISOString();
     const ev = (await db.eventos.where('hecho_en').above(inicio).toArray()).filter((e) => !e.resultado || e.resultado === 'OK');
     const c = (t: string) => ev.filter((e) => e.tipo === t).length;
-    setHoy({ recibidos: c('recibir'), armados: c('armar'), camara: c('camara_entrada'), despachados: c('despachar') });
+    setHoy({ recibidos: c('recibir') - c('deshacer_recepcion'), armados: c('armar'), camara: c('camara_entrada'), despachados: c('despachar') - c('quitar_despacho') });
   }, []);
 
   const sync = useCallback(async (silencioso = false) => {

@@ -1,9 +1,10 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import CapturaQR from '@/components/CapturaQR';
-import { BinActual, ESTADOS_BIN, estadoBin, registrarEvento } from '@/lib/bins';
+import { BinActual, BinServidor, deshacerEvento, ESTADOS_BIN, estadoBin, registrarEvento } from '@/lib/bins';
+import { db, EventoLocal, getCache, usuarioActual } from '@/lib/offline';
 import { configDe, Maestros } from '@/lib/campo';
-import { beep, hablar, normalizarCodigo, tipoCodigo, uuid, vibrar } from '@/lib/util';
+import { beep, hablar, horaCorta, hoyISO, normalizarCodigo, tipoCodigo, uuid, vibrar } from '@/lib/util';
 import type { Perfil } from '@/lib/auth';
 import { FichaBin, FormCalidad, FotoLocal, Fotos, Msg, Resultado, validarCalidad, ValoresCalidad } from './Comunes';
 
@@ -19,6 +20,37 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
   const [cuartel, setCuartel] = useState('');
   const [totes, setTotes] = useState('');
   const cuarteles = m.cuarteles.filter((c) => c.huerto_id === huerto);
+  const [recientes, setRecientes] = useState<{ e: EventoLocal; estado: string | null }[]>([]);
+
+  /** Recepciones de hoy hechas en este teléfono, con el estado actual del bin */
+  async function cargarRecientes() {
+    const inicio = new Date(hoyISO() + 'T00:00:00-03:00').toISOString();
+    const uid = usuarioActual();
+    const ev = (await db.eventos.where('hecho_en').above(inicio).toArray())
+      .filter((e) => e.usuario === uid && (e.tipo === 'recibir' || e.tipo === 'armar') && (!e.resultado || e.resultado === 'OK'))
+      .sort((a, b) => b.hecho_en.localeCompare(a.hecho_en));
+    const vistos = new Set<string>();
+    const l = [];
+    for (const e of ev) {
+      if (vistos.has(e.codigo)) continue; // solo la última recepción de cada bin
+      vistos.add(e.codigo);
+      l.push({ e, estado: (await estadoBin(e.codigo)).estado });
+    }
+    setRecientes(l.slice(0, 15));
+  }
+  useEffect(() => { cargarRecientes(); }, [m]); // eslint-disable-line
+
+  async function deshacer(e: EventoLocal) {
+    if (!confirm(`¿Deshacer la recepción del bin ${e.codigo}? Podrás recibirlo de nuevo.`)) return;
+    const bins: BinServidor[] = (await getCache('bins_activos')) || [];
+    const s = bins.find((b) => b.codigo === e.codigo);
+    // si venía de campo vuelve a "cerrado"; si se creó al recibir o armar aquí, queda libre
+    const previo = e.tipo === 'recibir' && s?.origen === 'campo' ? 'cerrado' : null;
+    const r = await deshacerEvento(e, 'deshacer_recepcion', { estado_previo: previo });
+    hablar('Recepción deshecha');
+    setMsg({ t: 'ok', titulo: 'Recepción deshecha', detalle: `${e.codigo}${r === 'revertido' ? ' · se corrige en la nube al sincronizar' : ''}` });
+    await cargarRecientes(); onCambio();
+  }
 
   const cfg = configDe(m, bin?.servidor?.huerto_id ?? undefined);
   const exige = !!cfg.exige_calidad_recepcion;
@@ -63,6 +95,7 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
     beep(true); vibrar(80); hablar('Recibido');
     setMsg({ t: 'ok', titulo: '✔ Bin recibido', detalle: bin.codigo });
     setBin(null);
+    await cargarRecientes();
     onCambio();
   }
 
@@ -133,6 +166,24 @@ export default function Recibir({ m, perfil, onCambio }: { m: Maestros; perfil: 
           <button style={{ flex: '0 0 auto' }} onClick={() => { leer(manual); setManual(''); }}>OK</button>
         </div>
       </details>
+      {recientes.length > 0 && (
+        <>
+          <h3>Recibidos hoy en este teléfono</h3>
+          {recientes.map(({ e, estado }) => (
+            <div key={e.id} className="rank-item">
+              <div className="fila-sup">
+                <b className="mono">{e.codigo}</b>
+                <span className="muted">{horaCorta(e.hecho_en)}{e.sync ? '' : ' · por subir'}</span>
+              </div>
+              <div className="fila-sup" style={{ alignItems: 'center' }}>
+                <span className="muted">{e.tipo === 'armar' ? 'Armado en acopio' : 'Recibido'}{e.datos?.envases != null ? ` · ${e.datos.envases} totes` : ''} · {estado ? ESTADOS_BIN[estado] : 'Despachado o deshecho'}</span>
+                {estado === 'recibido' && <button className="chico" onClick={() => deshacer(e)}>↩ Deshacer</button>}
+              </div>
+            </div>
+          ))}
+          <p className="muted" style={{ fontSize: '.82rem' }}>Solo se puede deshacer un bin que sigue en acopio. Si ya está en un despacho abierto, primero quítalo del camión.</p>
+        </>
+      )}
     </div>
   );
 }

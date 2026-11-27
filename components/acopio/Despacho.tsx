@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import CapturaQR from '@/components/CapturaQR';
-import { ESTADOS_BIN, estadoBin, registrarEvento } from '@/lib/bins';
-import { db, DespachoLocal, DestinosLocales, getCache, setCache, usuarioActual } from '@/lib/offline';
+import { deshacerEvento, ESTADOS_BIN, estadoBin, registrarEvento } from '@/lib/bins';
+import { db, DespachoLocal, DestinosLocales, EventoLocal, getCache, setCache, usuarioActual } from '@/lib/offline';
 import { supabase } from '@/lib/supabase';
 import { Maestros } from '@/lib/campo';
 import { beep, hablar, horaCorta, normalizarCodigo, rutValido, tipoCodigo, uuid, vibrar } from '@/lib/util';
@@ -16,7 +16,8 @@ const normalizarPatente = (p: string) => p.toUpperCase().replace(/[^A-Z0-9]/g, '
 
 export default function Despacho({ m, perfil, onCambio }: { m: Maestros; perfil: Perfil; onCambio: () => void }) {
   const [actual, setActual] = useState<DespachoLocal | null>(null);
-  const [bins, setBins] = useState<string[]>([]);
+  const [cargados, setCargados] = useState<EventoLocal[]>([]); // movimientos 'despachar' vigentes del despacho abierto
+  const bins = cargados.map((e) => e.codigo);
   const VACIO = { camion: '', patente: '', transportista: '', carro: '', guia: '', chofer: '',
     packing: '', planta: '', pk_nombre: '', pk_rut: '', pl_nombre: '', pl_direccion: '', pl_comuna: '' };
   const [form, setForm] = useState(VACIO);
@@ -33,9 +34,13 @@ export default function Despacho({ m, perfil, onCambio }: { m: Maestros; perfil:
     setActual(ab);
     setRecientes(todos.filter((d) => d.estado === 'cerrado').slice(0, 5));
     if (ab) {
-      const ev = await db.eventos.where('tipo').equals('despachar').toArray();
-      setBins(ev.filter((e) => e.datos?.despacho_id === ab.id && (!e.resultado || e.resultado === 'OK')).map((e) => e.codigo));
-    } else setBins([]);
+      const ok = (e: EventoLocal) => e.datos?.despacho_id === ab.id && (!e.resultado || e.resultado === 'OK');
+      const cargas = (await db.eventos.where('tipo').equals('despachar').toArray()).filter(ok);
+      const quitados = (await db.eventos.where('tipo').equals('quitar_despacho').toArray()).filter(ok);
+      // un bin sigue arriba si no hay un "quitar" posterior a su carga
+      setCargados(cargas.filter((c) => !quitados.some((q) => q.codigo === c.codigo && q.hecho_en > c.hecho_en))
+        .sort((a, b) => a.hecho_en.localeCompare(b.hecho_en)));
+    } else setCargados([]);
   }
   useEffect(() => { cargar(); }, [m]); // eslint-disable-line
   useEffect(() => { getCache<Camion[]>('camiones_locales').then((l) => setLocales(l || [])); }, [m]);
@@ -129,9 +134,37 @@ export default function Despacho({ m, perfil, onCambio }: { m: Maestros; perfil:
     await registrarEvento('despachar', codigo, { despacho_id: actual.id }, b.id);
     beep(true); vibrar(60);
     setMsg({ t: 'ok', titulo: `✔ Cargado (${bins.length + 1})`, detalle: codigo });
-    setBins([...bins, codigo]);
+    await cargar();
     onCambio();
     return false; // seguir cargando
+  }
+
+  /** Bajar un bin del camión (despacho abierto): vuelve a quedar en acopio */
+  async function quitar(e: EventoLocal, preguntar = true) {
+    if (!actual) return;
+    if (preguntar && !confirm(`¿Quitar el bin ${e.codigo} de este camión? Vuelve a quedar en acopio.`)) return;
+    const previo = (await estadoAntes(e)) || 'recibido';
+    await deshacerEvento(e, 'quitar_despacho', { despacho_id: actual.id, estado_previo: previo });
+    if (preguntar) { hablar('Bin quitado'); setMsg({ t: 'ok', titulo: 'Bin quitado del camión', detalle: e.codigo }); }
+    await cargar(); onCambio();
+  }
+
+  /** Estado del bin justo antes de subirlo al camión (recibido o enfriado) */
+  async function estadoAntes(e: EventoLocal) {
+    const prev = (await db.eventos.where('codigo').equals(e.codigo).sortBy('hecho_en')).filter((x) => x.hecho_en < e.hecho_en && (!x.resultado || x.resultado === 'OK'));
+    const ult = prev[prev.length - 1];
+    return ult?.tipo === 'camara_salida' ? 'enfriado' : ult?.tipo === 'camara_entrada' ? 'en_camara' : 'recibido';
+  }
+
+  /** Anular el despacho abierto: baja todos los bins y lo marca como anulado */
+  async function anular() {
+    if (!actual) return;
+    if (!confirm(`¿Anular el despacho ${actual.patente}?${cargados.length ? ` Los ${cargados.length} bins vuelven a quedar en acopio.` : ''}`)) return;
+    for (const e of cargados) await quitar(e, false);
+    await db.despachos.update(actual.id, { estado: 'anulado', cerrado_en: new Date().toISOString(), sync: 0 });
+    hablar('Despacho anulado');
+    setMsg({ t: 'ok', titulo: 'Despacho anulado', detalle: actual.patente });
+    await cargar(); onCambio();
   }
 
   /** Guía de despacho: se puede ingresar o corregir con el despacho abierto o ya cerrado */
@@ -260,11 +293,17 @@ export default function Despacho({ m, perfil, onCambio }: { m: Maestros; perfil:
       )}
       <CapturaQR etiqueta="Capturar bins que suben al camión" ayuda="Sigue capturando bins uno tras otro" onScan={leer} />
       <Resultado msg={msg} />
-      {bins.length > 0 && (
+      {cargados.length > 0 && (
         <div className="tarjeta" style={{ marginTop: '.8rem' }}>
-          {bins.slice().reverse().map((c) => <div key={c} className="mono">{c}</div>)}
+          {cargados.slice().reverse().map((e) => (
+            <div key={e.id} className="fila-sup" style={{ alignItems: 'center', padding: '.3rem 0', borderBottom: '1px solid var(--borde)' }}>
+              <span className="mono">{e.codigo} <span className="muted" style={{ fontSize: '.8rem' }}>{horaCorta(e.hecho_en)}</span></span>
+              <button className="chico" onClick={() => quitar(e)}>✕ Quitar</button>
+            </div>
+          ))}
         </div>
       )}
+      <button className="chico peligro" style={{ marginTop: '1rem' }} onClick={anular}>Anular este despacho</button>
     </div>
   );
 }

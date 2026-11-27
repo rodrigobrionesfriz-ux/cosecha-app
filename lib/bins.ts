@@ -51,6 +51,8 @@ function aplicar(b: BinActual, e: EventoLocal) {
     case 'camara_entrada': b.estado = 'en_camara'; b.camara_id = e.datos?.camara_id ?? null; b.camara_inicio = e.hecho_en; break;
     case 'camara_salida': b.estado = 'enfriado'; break;
     case 'despachar': b.estado = null; b.id = null; break;
+    case 'quitar_despacho': b.estado = e.datos?.estado_previo || 'recibido'; b.id = e.bin_id ?? b.id; break;
+    case 'deshacer_recepcion': b.estado = e.datos?.estado_previo ?? null; if (!b.estado) b.id = null; break;
   }
 }
 
@@ -88,4 +90,15 @@ export async function eventosRechazados(dias = 2) {
 export const TEXTO_EVENTO: Record<string, string> = {
   abrir: 'Abrir bin', cerrar: 'Cerrar bin', armar: 'Armar bin', recibir: 'Recepción',
   camara_entrada: 'Entrada a cámara', camara_salida: 'Salida de cámara', despachar: 'Despacho',
+  quitar_despacho: 'Quitar del despacho', deshacer_recepcion: 'Deshacer recepción',
 };
+
+/**
+ * Deshace un movimiento hecho en este teléfono. Si aún no se subió, simplemente se borra;
+ * si ya se subió, se registra el movimiento inverso para que el servidor lo revierta.
+ */
+export async function deshacerEvento(e: EventoLocal, inverso: 'quitar_despacho' | 'deshacer_recepcion', datos: any = {}) {
+  if (e.sync === 0) { await db.eventos.delete(e.id); return 'borrado' as const; }
+  await registrarEvento(inverso, e.codigo, datos, e.bin_id);
+  return 'revertido' as const;
+}

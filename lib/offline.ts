@@ -57,7 +57,7 @@ export type AsignacionLocal = {
 export type EventoLocal = {
   id: string;
   codigo: string;
-  tipo: 'abrir' | 'cerrar' | 'armar' | 'recibir' | 'camara_entrada' | 'camara_salida' | 'despachar';
+  tipo: 'abrir' | 'cerrar' | 'armar' | 'recibir' | 'camara_entrada' | 'camara_salida' | 'despachar' | 'quitar_despacho' | 'deshacer_recepcion';
   bin_id: string | null;
   datos: any;
   hecho_en: string;
@@ -72,7 +72,7 @@ export type EventoLocal = {
 /** Despacho (camión) creado en el teléfono de acopio */
 export type DespachoLocal = {
   id: string; empresa_id: string; patente: string; guia: string; destino: string; chofer: string; transportista?: string; carro?: string; packing_id?: string | null; planta_id?: string | null;
-  estado: 'abierto' | 'cerrado'; abierto_en: string; cerrado_en: string | null; usuario: string; sync: 0 | 1;
+  estado: 'abierto' | 'cerrado' | 'anulado'; abierto_en: string; cerrado_en: string | null; usuario: string; sync: 0 | 1;
 };
 
 class CosechaDB extends Dexie {
