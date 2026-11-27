@@ -2,10 +2,10 @@
 import { useEffect, useState } from 'react';
 import CapturaQR from '@/components/CapturaQR';
 import { ESTADOS_BIN, estadoBin, registrarEvento } from '@/lib/bins';
-import { db, DespachoLocal, getCache, setCache, usuarioActual } from '@/lib/offline';
+import { db, DespachoLocal, DestinosLocales, getCache, setCache, usuarioActual } from '@/lib/offline';
 import { supabase } from '@/lib/supabase';
 import { Maestros } from '@/lib/campo';
-import { beep, hablar, horaCorta, normalizarCodigo, tipoCodigo, uuid, vibrar } from '@/lib/util';
+import { beep, hablar, horaCorta, normalizarCodigo, rutValido, tipoCodigo, uuid, vibrar } from '@/lib/util';
 import type { Perfil } from '@/lib/auth';
 import { Msg, Resultado } from './Comunes';
 
@@ -17,9 +17,11 @@ const normalizarPatente = (p: string) => p.toUpperCase().replace(/[^A-Z0-9]/g, '
 export default function Despacho({ m, perfil, onCambio }: { m: Maestros; perfil: Perfil; onCambio: () => void }) {
   const [actual, setActual] = useState<DespachoLocal | null>(null);
   const [bins, setBins] = useState<string[]>([]);
-  const VACIO = { camion: '', patente: '', transportista: '', carro: '', guia: '', destino: '', chofer: '' };
+  const VACIO = { camion: '', patente: '', transportista: '', carro: '', guia: '', chofer: '',
+    packing: '', planta: '', pk_nombre: '', pk_rut: '', pl_nombre: '', pl_direccion: '', pl_comuna: '' };
   const [form, setForm] = useState(VACIO);
   const [locales, setLocales] = useState<Camion[]>([]);
+  const [destLoc, setDestLoc] = useState<DestinosLocales>({ packings: [], plantas: [] });
   const [editGuia, setEditGuia] = useState<{ id: string; valor: string } | null>(null); // ingresar o corregir la guía // agregados en este teléfono, aún no descargados
   const [msg, setMsg] = useState<Msg>(null);
   const [recientes, setRecientes] = useState<DespachoLocal[]>([]);
@@ -37,6 +39,22 @@ export default function Despacho({ m, perfil, onCambio }: { m: Maestros; perfil:
   }
   useEffect(() => { cargar(); }, [m]); // eslint-disable-line
   useEffect(() => { getCache<Camion[]>('camiones_locales').then((l) => setLocales(l || [])); }, [m]);
+  useEffect(() => { getCache<DestinosLocales>('destinos_locales').then((l) => setDestLoc(l || { packings: [], plantas: [] })); }, [m]);
+
+  // Destinos: packings con sus plantas (servidor + agregados en este teléfono)
+  const unir = (a: any[], b: any[]) => [...a, ...b.filter((x) => !a.some((y) => y.id === x.id))];
+  const packings = unir((m.packings || []).filter((x: any) => x.activo !== false), destLoc.packings)
+    .sort((a, b) => (a.nombre_corto || a.nombre).localeCompare(b.nombre_corto || b.nombre));
+  const plantas = unir((m.packing_plantas || []).filter((x: any) => x.activo !== false), destLoc.plantas);
+  const nombrePk = (p: any) => p?.nombre_corto || p?.nombre || '';
+  const pkNuevo = form.packing === NUEVO;
+  const plNuevo = pkNuevo || form.planta === NUEVO;
+  const plantasDe = plantas.filter((x) => x.packing_id === form.packing).sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  function elegirPacking(v: string) {
+    const pls = plantas.filter((x) => x.packing_id === v);
+    setForm({ ...form, packing: v, planta: pls.length === 1 ? pls[0].id : '', pk_nombre: '', pk_rut: '', pl_nombre: '', pl_direccion: '', pl_comuna: '' });
+  }
 
   // Camiones del servidor + los agregados aquí (sin duplicar patente), por patente
   const servidor: Camion[] = (m.camiones || []).filter((c: any) => c.activo !== false);
@@ -59,6 +77,13 @@ export default function Despacho({ m, perfil, onCambio }: { m: Maestros; perfil:
     if (!/^[A-Z0-9]{4,8}$/.test(patente)) return error('Patente no válida', 'Usa letras y números, ej: BBVT39');
     const carro = normalizarPatente(form.carro);
     if (carro && !/^[A-Z0-9]{4,8}$/.test(carro)) return error('Patente del carro no válida', 'Usa letras y números, ej: JK1234');
+    // destino
+    if (!form.packing) return error('Elige el destino (packing)');
+    if (pkNuevo && !form.pk_nombre.trim()) return error('Falta la razón social del packing');
+    const rutPk = form.pk_rut.replace(/[^0-9kK]/g, '').toUpperCase();
+    if (pkNuevo && rutPk && !rutValido(rutPk)) return error('RUT del packing no válido');
+    if (!plNuevo && !form.planta) return error('Elige la planta de destino');
+    if (plNuevo && !form.pl_nombre.trim()) return error('Falta el nombre de la planta', 'Ej: Planta San Clemente');
     if (nuevo) {
       if (camiones.some((c) => c.patente === patente)) return error('Ese camión ya existe', `Elígelo en la lista: ${patente}`);
       const c: Camion = { patente, transportista: form.transportista.trim() || null, chofer: form.chofer.trim() || null, carro: carro || null };
@@ -67,9 +92,23 @@ export default function Despacho({ m, perfil, onCambio }: { m: Maestros; perfil:
       // con señal queda registrado altiro; sin señal se registra al subir el despacho
       if (navigator.onLine) supabase.from('camiones').insert({ empresa_id: perfil.empresa_id, ...c }).then(() => {}, () => {});
     }
+    let packingId = form.packing, plantaId = form.planta;
+    if (plNuevo) {
+      const loc: DestinosLocales = { packings: [...destLoc.packings], plantas: [...destLoc.plantas] };
+      if (pkNuevo) {
+        packingId = uuid();
+        loc.packings.push({ id: packingId, empresa_id: perfil.empresa_id, nombre: form.pk_nombre.trim(), rut: rutPk || null, sync: 0 });
+      }
+      plantaId = uuid();
+      loc.plantas.push({ id: plantaId, empresa_id: perfil.empresa_id, packing_id: packingId, nombre: form.pl_nombre.trim(),
+        direccion: form.pl_direccion.trim() || null, comuna: form.pl_comuna.trim() || null, sync: 0 });
+      await setCache('destinos_locales', loc); setDestLoc(loc);
+    }
+    const pk = pkNuevo ? { nombre: form.pk_nombre.trim() } : packings.find((x) => x.id === packingId);
+    const pl = plNuevo ? { nombre: form.pl_nombre.trim() } : plantas.find((x) => x.id === plantaId);
     const d: DespachoLocal = {
-      id: uuid(), empresa_id: perfil.empresa_id, patente, carro, transportista: form.transportista.trim(), guia: form.guia.trim(),
-      destino: form.destino.trim(), chofer: form.chofer.trim(), estado: 'abierto', abierto_en: new Date().toISOString(),
+      id: uuid(), empresa_id: perfil.empresa_id, patente, carro, packing_id: packingId, planta_id: plantaId, transportista: form.transportista.trim(), guia: form.guia.trim(),
+      destino: `${nombrePk(pk)} · ${pl?.nombre || ''}`, chofer: form.chofer.trim(), estado: 'abierto', abierto_en: new Date().toISOString(),
       cerrado_en: null, usuario: usuarioActual(), sync: 0,
     };
     await db.despachos.add(d);
@@ -151,7 +190,39 @@ export default function Despacho({ m, perfil, onCambio }: { m: Maestros; perfil:
             </div>
           )}
           <div className="campo"><label>N° guía de despacho <span className="muted" style={{ fontWeight: 400 }}>(puedes ingresarla después)</span></label><input inputMode="numeric" value={form.guia} onChange={(e) => setForm({ ...form, guia: e.target.value })} /></div>
-          <div className="campo"><label>Destino</label><input value={form.destino} onChange={(e) => setForm({ ...form, destino: e.target.value })} placeholder="Planta, packing…" /></div>
+          <div className="campo">
+            <label>Destino (packing) *</label>
+            <select value={form.packing} onChange={(e) => elegirPacking(e.target.value)}>
+              <option value="">Elige el packing…</option>
+              {packings.map((p) => <option key={p.id} value={p.id}>{nombrePk(p)}</option>)}
+              <option value={NUEVO}>+ Agregar packing nuevo</option>
+            </select>
+          </div>
+          {pkNuevo && (
+            <div className="tarjeta" style={{ background: 'var(--paja-3)', padding: '.8rem' }}>
+              <div className="campo"><label>Razón social del packing *</label><input value={form.pk_nombre} onChange={(e) => setForm({ ...form, pk_nombre: e.target.value })} /></div>
+              <div className="campo"><label>RUT</label><input value={form.pk_rut} onChange={(e) => setForm({ ...form, pk_rut: e.target.value })} placeholder="Ej: 76.543.210-3" /></div>
+              <p className="muted" style={{ margin: 0, fontSize: '.82rem' }}>El resto de la ficha se completa en el panel (Configuración → Destinos).</p>
+            </div>
+          )}
+          {form.packing && !pkNuevo && (
+            <div className="campo">
+              <label>Planta *</label>
+              <select value={form.planta} onChange={(e) => setForm({ ...form, planta: e.target.value })}>
+                <option value="">Elige la planta…</option>
+                {plantasDe.map((p) => <option key={p.id} value={p.id}>{p.nombre}{p.comuna ? ` · ${p.comuna}` : ''}</option>)}
+                <option value={NUEVO}>+ Agregar planta nueva</option>
+              </select>
+            </div>
+          )}
+          {plNuevo && form.packing && (
+            <div className="tarjeta" style={{ background: 'var(--paja-3)', padding: '.8rem' }}>
+              <div className="campo"><label>Nombre de la planta *</label><input value={form.pl_nombre} onChange={(e) => setForm({ ...form, pl_nombre: e.target.value })} placeholder="Ej: Planta San Clemente" /></div>
+              <div className="campo"><label>Dirección</label><input value={form.pl_direccion} onChange={(e) => setForm({ ...form, pl_direccion: e.target.value })} /></div>
+              <div className="campo"><label>Comuna</label><input value={form.pl_comuna} onChange={(e) => setForm({ ...form, pl_comuna: e.target.value })} /></div>
+              <p className="muted" style={{ margin: 0, fontSize: '.82rem' }}>Queda guardada para los próximos despachos.</p>
+            </div>
+          )}
           <div className="campo"><label>Chofer</label><input value={form.chofer} onChange={(e) => setForm({ ...form, chofer: e.target.value })} /></div>
           <button className="primario grande">Abrir despacho y cargar bins</button>
         </form>

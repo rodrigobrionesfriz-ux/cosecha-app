@@ -13,6 +13,7 @@ const MENU: Item[] = [
   { href: '/admin/tarjetas/', t: 'Tarjetas QR', i: '🪪' },
   { href: '/admin/empresa/', t: 'Empresa', i: '🏢', grupo: 'config' },
   { href: '/admin/maestros/', t: 'Huertos y maestros', i: '🌳', grupo: 'config' },
+  { href: '/admin/destinos/', t: 'Destinos (packing)', i: '🏭', grupo: 'config' },
   { href: '/admin/config/', t: 'Reglas y tarifas', i: '💲', grupo: 'config' },
   { href: '/admin/usuarios/', t: 'Usuarios', i: '👤', grupo: 'config' },
   { href: '/admin/equipos/', t: 'Equipos', i: '📱', grupo: 'config' },

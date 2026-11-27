@@ -71,7 +71,7 @@ export type EventoLocal = {
 
 /** Despacho (camión) creado en el teléfono de acopio */
 export type DespachoLocal = {
-  id: string; empresa_id: string; patente: string; guia: string; destino: string; chofer: string; transportista?: string; carro?: string;
+  id: string; empresa_id: string; patente: string; guia: string; destino: string; chofer: string; transportista?: string; carro?: string; packing_id?: string | null; planta_id?: string | null;
   estado: 'abierto' | 'cerrado'; abierto_en: string; cerrado_en: string | null; usuario: string; sync: 0 | 1;
 };
 
@@ -148,7 +148,7 @@ export function idDispositivo(): string {
 }
 
 // ---------- Descarga de maestros ----------
-const MAESTROS = ['huertos', 'cuarteles', 'variedades', 'especies', 'envases', 'calidades', 'turnos', 'contratistas', 'cuadrillas', 'config_huerto', 'camaras', 'parametros_calidad', 'operadores', 'camiones'];
+const MAESTROS = ['huertos', 'cuarteles', 'variedades', 'especies', 'envases', 'calidades', 'turnos', 'contratistas', 'cuadrillas', 'config_huerto', 'camaras', 'parametros_calidad', 'operadores', 'camiones', 'packings', 'packing_plantas'];
 
 export async function descargarMaestros(): Promise<void> {
   for (const t of MAESTROS) {
@@ -161,6 +161,9 @@ export async function descargarMaestros(): Promise<void> {
   }
   // los camiones agregados en el teléfono ya subieron con su despacho (se sube antes de descargar)
   await setCache('camiones_locales', []);
+  // packings y plantas agregados aquí: quedan solo los que aún no suben
+  const pl: DestinosLocales = (await getCache('destinos_locales')) || { packings: [], plantas: [] };
+  await setCache('destinos_locales', { packings: pl.packings.filter((x) => !x.sync), plantas: pl.plantas.filter((x) => !x.sync) });
   // Trabajadores (todos, para conocer bloqueados) y credenciales asignadas
   const trab = await traerTodo('trabajadores', 'id,rut,nombres,apellido_paterno,apellido_materno,estado,contratista_id,con_ficha');
   await setCache('trabajadores', trab);
@@ -245,8 +248,25 @@ export async function subirPendientes(): Promise<{ entregas: number; asignacione
   return { entregas: nEnt, asignaciones: nAsig, eventos: nEv, errores };
 }
 
+/** Packings y plantas agregados en el teléfono al despachar (ids generados aquí) */
+export type DestinosLocales = { packings: any[]; plantas: any[] };
+
+async function subirDestinos(errores: string[]) {
+  const l: DestinosLocales = (await getCache('destinos_locales')) || { packings: [], plantas: [] };
+  for (const [tabla, lista] of [['packings', l.packings], ['packing_plantas', l.plantas]] as const) {
+    for (const x of lista.filter((y) => !y.sync)) {
+      const { sync, ...rest } = x;
+      const { error } = await supabase.from(tabla).upsert(rest, { onConflict: 'id', ignoreDuplicates: true });
+      if (error) { errores.push(`${tabla === 'packings' ? 'Packing' : 'Planta'} ${x.nombre}: ${error.message}`); continue; }
+      x.sync = 1;
+    }
+  }
+  await setCache('destinos_locales', l);
+}
+
 /** Sube despachos, fotos y eventos de bins; trae el resultado que dio el servidor a cada evento */
 async function subirEventos(uid: string, errores: string[]): Promise<number> {
+  await subirDestinos(errores);
   const desp = (await db.despachos.where('sync').equals(0).toArray()).filter((d) => d.usuario === uid);
   for (const d of desp) {
     const { sync, usuario, ...rest } = d;

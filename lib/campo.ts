@@ -9,7 +9,7 @@ export type Maestros = {
   trabajadores: any[]; credenciales: { codigo: string; trabajador_id: string }[];
   cajas_servidor: { codigo_caja: string; leido_en: string }[];
   bins_activos: import('./bins').BinServidor[];
-  camaras: any[]; parametros_calidad: any[]; operadores: any[]; camiones: any[];
+  camaras: any[]; parametros_calidad: any[]; operadores: any[]; camiones: any[]; packings: any[]; packing_plantas: any[];
   ultima_descarga: string | null;
 };
 
@@ -46,7 +46,7 @@ export function jornadaActual(m: Maestros, cfg: Config, fecha = new Date()): { i
 }
 
 export async function leerMaestros(): Promise<Maestros> {
-  const k = ['huertos', 'cuarteles', 'variedades', 'especies', 'envases', 'calidades', 'turnos', 'contratistas', 'cuadrillas', 'config_huerto', 'trabajadores', 'credenciales', 'cajas_servidor', 'bins_activos', 'camaras', 'parametros_calidad', 'operadores', 'camiones', 'ultima_descarga'];
+  const k = ['huertos', 'cuarteles', 'variedades', 'especies', 'envases', 'calidades', 'turnos', 'contratistas', 'cuadrillas', 'config_huerto', 'trabajadores', 'credenciales', 'cajas_servidor', 'bins_activos', 'camaras', 'parametros_calidad', 'operadores', 'camiones', 'packings', 'packing_plantas', 'ultima_descarga'];
   const vals = await Promise.all(k.map((x) => getCache(x)));
   const m: any = {};
   k.forEach((x, i) => (m[x] = vals[i] ?? (x === 'ultima_descarga' ? null : [])));
