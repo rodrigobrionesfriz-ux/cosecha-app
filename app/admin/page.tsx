@@ -4,7 +4,7 @@ import { cargarEntregas, Fila } from '@/lib/reportes';
 import { cargarTabla, useTabla } from '@/lib/datos';
 import { supabase } from '@/lib/supabase';
 import { hoyISO, horaCorta, num } from '@/lib/util';
-import { BarrasH, Columnas, Punto, TablaPuntos, TarjetaGrafico } from '@/components/Graficos';
+import { asignarColores, BarrasH, Columnas, ColumnasApiladas, Leyenda, PALETA, Punto, TablaPuntos, TarjetaGrafico } from '@/components/Graficos';
 
 type Vista = 'Diario' | 'Temporada';
 
@@ -129,9 +129,9 @@ export default function Dashboard() {
       .sort((a, b) => a.clave.localeCompare(b.clave));
 
     // Top 10 por trabajador: kilos por hora (primera a última lectura de cada día, mínimo 1 h) y kilos por día trabajado
-    const tw = new Map<string, { nombre: string; kilos: number; dias: Map<string, { ini: number; fin: number }> }>();
+    const tw = new Map<string, { nombre: string; contratista: string; kilos: number; dias: Map<string, { ini: number; fin: number }> }>();
     for (const f of validas) {
-      const t = tw.get(f.trabajador_id) || { nombre: f.trabajador, kilos: 0, dias: new Map() };
+      const t = tw.get(f.trabajador_id) || { nombre: f.trabajador, contratista: f.contratista || 'Propio', kilos: 0, dias: new Map() };
       t.kilos += Number(f.kilos_estimados);
       const ms = new Date(f.leido_en).getTime();
       const d = t.dias.get(f.fecha) || { ini: ms, fin: ms };
@@ -140,7 +140,7 @@ export default function Dashboard() {
     }
     const tws = [...tw.entries()].map(([id, t]) => {
       const horas = [...t.dias.values()].reduce((a, d) => a + Math.max(1, (d.fin - d.ini) / 3600000), 0);
-      return { id, nombre: t.nombre, kilos: t.kilos, horas, dias: t.dias.size };
+      return { id, nombre: t.nombre, contratista: t.contratista, kilos: t.kilos, horas, dias: t.dias.size };
     });
     const topHora = [...tws].sort((a, b) => b.kilos / b.horas - a.kilos / a.horas).slice(0, 10);
     const topDia = [...tws].sort((a, b) => b.kilos / b.dias - a.kilos / a.dias).slice(0, 10);
@@ -192,8 +192,7 @@ export default function Dashboard() {
   // Tendencias: en diario, los 7 días hasta la fecha; en temporada, todo el rango
   const porDiaRango = acumular(validasRango, (f) => f.fecha, (f) => etDia(f.fecha)).sort((a, b) => a.clave.localeCompare(b.clave));
   const pRend: Punto[] = porDiaRango.map((a) => ({ clave: a.clave, etiqueta: a.etiqueta, valor: Math.round(a.trab.size ? a.kilos / a.trab.size : 0), detalle: `${num(a.kilos)} kg · ${a.trab.size} trab.` }));
-  const pTopHora: Punto[] = r.topHora.map((t) => ({ clave: t.id, etiqueta: t.nombre, valor: Math.round(t.kilos / t.horas), detalle: `${num(t.kilos)} kg en ${num(t.horas, 1)} h` }));
-  const pTopDia: Punto[] = r.topDia.map((t) => ({ clave: t.id, etiqueta: t.nombre, valor: Math.round(t.kilos / t.dias), detalle: `${num(t.kilos)} kg en ${t.dias} día(s)` }));
+
   // Trabajadores cosechando por día, separados por contratista (Propio = sin contratista)
   const contrCols = [...new Set(validasRango.map((f) => f.contratista || 'Propio'))].sort((a, b) => (a === 'Propio' ? -1 : b === 'Propio' ? 1 : a.localeCompare(b)));
   const trabDia = porDiaRango.map((a) => {
@@ -202,7 +201,15 @@ export default function Dashboard() {
     for (const c of contrCols) por[c] = new Set(filasDia.filter((f) => (f.contratista || 'Propio') === c).map((f) => f.trabajador_id)).size;
     return { clave: a.clave, etiqueta: a.etiqueta, total: a.trab.size, por };
   });
-  const pTrabDia: Punto[] = trabDia.map((d) => ({ clave: d.clave, etiqueta: d.etiqueta, valor: d.total, detalle: contrCols.filter((c) => d.por[c]).map((c) => `${c} ${d.por[c]}`).join(' · ') }));
+  // Colores estables por entidad (orden alfabético, no por ranking)
+  const colContr = asignarColores([...contrCols, ...r.topHora.map((t) => t.contratista), ...r.topDia.map((t) => t.contratista)], 5);
+  const colVariedad = asignarColores(r.porVariedad.map((a) => a.clave));
+  const colCuadrilla = asignarColores([...r.porCuadrilla.map((a) => a.clave), ...porCuadrillaBins.map((a) => a.clave)], 1);
+  // El cuartel toma el color de su variedad (la clave es huerto|cuartel|variedad)
+  const colCuartel: Record<string, string> = Object.fromEntries(pCuartel.map((p) => [p.clave, colVariedad[p.clave.split('|')[2] || 'Sin variedad'] ?? PALETA[0]]));
+  const pTopHora: Punto[] = r.topHora.map((t) => ({ clave: t.id, etiqueta: t.nombre, valor: Math.round(t.kilos / t.horas), detalle: `${t.contratista} · ${num(t.kilos)} kg en ${num(t.horas, 1)} h`, color: colContr[t.contratista] }));
+  const pTopDia: Punto[] = r.topDia.map((t) => ({ clave: t.id, etiqueta: t.nombre, valor: Math.round(t.kilos / t.dias), detalle: `${t.contratista} · ${num(t.kilos)} kg en ${t.dias} día(s)`, color: colContr[t.contratista] }));
+  const leyTop = (l: { contratista: string }[]) => [...new Set(l.map((t) => t.contratista))].sort().map((c) => ({ nombre: c, color: colContr[c] }));
   const rangoTxt = vista === 'Diario' ? 'Últimos 7 días hasta la fecha' : 'Temporada';
 
   return (
@@ -266,17 +273,17 @@ export default function Dashboard() {
       )}
 
       <div className="kpis">
-        <div className="kpi"><div className="v">{num(r.kilos)}</div><div className="l">Kilos estimados</div></div>
-        <div className="kpi"><div className="v">{num(r.envases)}</div><div className="l">Envases</div></div>
-        <div className="kpi"><div className="v">{num(r.trabajadores)}</div><div className="l">Trabajadores</div></div>
-        <div className="kpi"><div className="v">{num(rendimiento, 1)}</div><div className="l">Kg por trabajador{diario ? '' : ' al día'}</div></div>
+        <div className="kpi acento-4"><div className="v">{num(r.kilos)}</div><div className="l">Kilos estimados</div></div>
+        <div className="kpi acento-2"><div className="v">{num(r.envases)}</div><div className="l">Envases</div></div>
+        <div className="kpi acento-5"><div className="v">{num(r.trabajadores)}</div><div className="l">Trabajadores</div></div>
+        <div className="kpi acento-3"><div className="v">{num(rendimiento, 1)}</div><div className="l">Kg por trabajador{diario ? '' : ' al día'}</div></div>
         {diario
-          ? <div className="kpi"><div className="v">{ultima ? horaCorta(ultima.leido_en) : '—'}</div><div className="l">Última lectura</div></div>
-          : <div className="kpi"><div className="v">{r.dias}</div><div className="l">Días con cosecha</div></div>}
+          ? <div className="kpi acento-6"><div className="v">{ultima ? horaCorta(ultima.leido_en) : '—'}</div><div className="l">Última lectura</div></div>
+          : <div className="kpi acento-6"><div className="v">{r.dias}</div><div className="l">Días con cosecha</div></div>}
       </div>
       <div className="kpis kpis-pago">
-        <div className="kpi"><div className="v">${num(r.pagoTrab)}</div><div className="l">A pagar a trabajadores</div></div>
-        <div className="kpi" title={r.contratistas.map((c) => `${c.nombre}: ${[...c.pcts].join(' / ') || 0}% sobre $${num(c.base)} = $${num(c.recargo)}`).join('\n')}>
+        <div className="kpi acento-2"><div className="v">${num(r.pagoTrab)}</div><div className="l">A pagar a trabajadores</div></div>
+        <div className="kpi acento-7" title={r.contratistas.map((c) => `${c.nombre}: ${[...c.pcts].join(' / ') || 0}% sobre $${num(c.base)} = $${num(c.recargo)}`).join('\n')}>
           <div className="v">${num(r.recargo)}</div>
           <div className="l">A pagar a contratistas{pctContratistas ? ` · ${pctContratistas}` : ''}</div>
         </div>
@@ -293,33 +300,33 @@ export default function Dashboard() {
       <div className="graf-grilla">
         {diario ? (
           <>
-            <TarjetaGrafico titulo="Kilos por hora" sub="Kilos estimados entregados en cada hora" tabla={<TablaPuntos datos={pHoraKg} cab="Hora" unidad="Kilos" />}>
-              <Columnas datos={pHoraKg} unidad="kg" />
+            <TarjetaGrafico color="var(--s4)" titulo="Kilos por hora" sub="Kilos estimados entregados en cada hora" tabla={<TablaPuntos datos={pHoraKg} cab="Hora" unidad="Kilos" />}>
+              <Columnas datos={pHoraKg} unidad="kg" color="var(--s4)" />
             </TarjetaGrafico>
-            <TarjetaGrafico titulo="Trabajadores por hora" sub="Trabajadores distintos que entregaron en cada hora" tabla={<TablaPuntos datos={pHoraTrab} cab="Hora" unidad="Trabajadores" />}>
-              <Columnas datos={pHoraTrab} unidad="trab." />
+            <TarjetaGrafico color="var(--s5)" titulo="Trabajadores por hora" sub="Trabajadores distintos que entregaron en cada hora" tabla={<TablaPuntos datos={pHoraTrab} cab="Hora" unidad="Trabajadores" />}>
+              <Columnas datos={pHoraTrab} unidad="trab." color="var(--s5)" />
             </TarjetaGrafico>
           </>
         ) : (
-          <TarjetaGrafico titulo="Kilos por día" sub="Avance diario de la temporada" tabla={<TablaPuntos datos={pDia} cab="Día" unidad="Kilos" />}>
-            <Columnas datos={pDia} unidad="kg" />
+          <TarjetaGrafico color="var(--s4)" titulo="Kilos por día" sub="Avance diario de la temporada" tabla={<TablaPuntos datos={pDia} cab="Día" unidad="Kilos" />}>
+            <Columnas datos={pDia} unidad="kg" color="var(--s4)" />
           </TarjetaGrafico>
         )}
 
         <TarjetaGrafico titulo="Kilos por cuadrilla" sub="Cuadrilla o jefe que registró la entrega" tabla={<TablaPuntos datos={pCuadrilla} cab="Cuadrilla" unidad="Kilos" />}>
-          <BarrasH datos={pCuadrilla} unidad="kg" />
+          <BarrasH datos={pCuadrilla} unidad="kg" colores={colCuadrilla} />
         </TarjetaGrafico>
 
         <TarjetaGrafico titulo="Kilos por cuartel y variedad" sub={diario ? 'Cosechado en el día' : 'Acumulado de la temporada'} tabla={<TablaPuntos datos={pCuartel} cab="Cuartel" unidad="Kilos" />}>
-          <BarrasH datos={pCuartel} unidad="kg" />
+          <BarrasH datos={pCuartel} unidad="kg" colores={colCuartel} />
         </TarjetaGrafico>
 
         <TarjetaGrafico titulo="Kilos por variedad" sub={diario ? 'Cosechado en el día' : 'Acumulado de la temporada'} tabla={<TablaPuntos datos={pVariedad} cab="Variedad" unidad="Kilos" />}>
-          <BarrasH datos={pVariedad} unidad="kg" />
+          <BarrasH datos={pVariedad} unidad="kg" colores={colVariedad} />
         </TarjetaGrafico>
 
-        <TarjetaGrafico titulo="Rendimiento diario por trabajador" sub={`Kg promedio por trabajador cada día · ${rangoTxt}`} tabla={<TablaPuntos datos={pRend} cab="Día" unidad="Kg/trabajador" />}>
-          <Columnas datos={pRend} unidad="kg/trab." />
+        <TarjetaGrafico color="var(--s3)" titulo="Rendimiento diario por trabajador" sub={`Kg promedio por trabajador cada día · ${rangoTxt}`} tabla={<TablaPuntos datos={pRend} cab="Día" unidad="Kg/trabajador" />}>
+          <Columnas datos={pRend} unidad="kg/trab." color="var(--s3)" />
         </TarjetaGrafico>
 
         <TarjetaGrafico titulo="Trabajadores cosechando por día" sub={`Separados por contratista · ${rangoTxt}`}
@@ -332,7 +339,7 @@ export default function Dashboard() {
               </tbody>
             </table>
           )}>
-          <Columnas datos={pTrabDia} unidad="trab." />
+          <ColumnasApiladas datos={trabDia} series={contrCols} colores={colContr} unidad="trab." />
           {contrCols.length > 0 && trabDia.length > 0 && (
             <div className="muted" style={{ fontSize: '.85rem', marginTop: '.4rem' }}>
               {diario ? 'Hoy' : 'Último día'}: {contrCols.map((c) => `${c} ${trabDia[trabDia.length - 1].por[c] || 0}`).join(' · ')}
@@ -342,10 +349,12 @@ export default function Dashboard() {
 
         <TarjetaGrafico titulo="Top 10 kilos por hora" sub="Kilos ÷ horas entre la primera y la última entrega del día (mínimo 1 h)" tabla={<TablaPuntos datos={pTopHora} cab="Trabajador" unidad="Kg/hora" />}>
           <BarrasH datos={pTopHora} unidad="kg/h" />
+          <Leyenda items={leyTop(r.topHora)} />
         </TarjetaGrafico>
 
         <TarjetaGrafico titulo="Top 10 kilos por día" sub={diario ? 'Kilos del trabajador en el día' : 'Kilos ÷ días trabajados en la temporada'} tabla={<TablaPuntos datos={pTopDia} cab="Trabajador" unidad="Kg/día" />}>
           <BarrasH datos={pTopDia} unidad="kg/día" />
+          <Leyenda items={leyTop(r.topDia)} />
         </TarjetaGrafico>
       </div>
 
@@ -353,12 +362,12 @@ export default function Dashboard() {
         <>
           <h2>Acopio</h2>
           <div className="kpis">
-            <div className="kpi"><div className="v">{ac.cosechados}</div><div className="l">Bins cosechados en campo</div></div>
-            <div className="kpi"><div className="v">{ac.recibidos}</div><div className="l">Recibidos en acopio{ac.armados ? ` (${ac.armados} armados allí)` : ''}</div></div>
-            <div className="kpi"><div className="v">{ac.pendientes}</div><div className="l">Sin recepción</div></div>
-            <div className="kpi"><div className="v">{ac.camara}</div><div className="l">En cámara</div></div>
-            <div className="kpi"><div className="v">{ac.despachados}</div><div className="l">Despachados</div></div>
-            <div className="kpi"><div className="v">{ac.minutos == null ? '—' : num(ac.minutos)}</div><div className="l">Min. promedio de campo a acopio</div></div>
+            <div className="kpi acento-4"><div className="v">{ac.cosechados}</div><div className="l">Bins cosechados en campo</div></div>
+            <div className="kpi acento-2"><div className="v">{ac.recibidos}</div><div className="l">Recibidos en acopio{ac.armados ? ` (${ac.armados} armados allí)` : ''}</div></div>
+            <div className="kpi acento-7"><div className="v">{ac.pendientes}</div><div className="l">Sin recepción</div></div>
+            <div className="kpi acento-6"><div className="v">{ac.camara}</div><div className="l">En cámara</div></div>
+            <div className="kpi acento-5"><div className="v">{ac.despachados}</div><div className="l">Despachados</div></div>
+            <div className="kpi acento-3"><div className="v">{ac.minutos == null ? '—' : num(ac.minutos)}</div><div className="l">Min. promedio de campo a acopio</div></div>
           </div>
           <div className="graf-grilla">
             <TarjetaGrafico titulo="Bins por cuadrilla" sub="Bins llenados; el detalle muestra recibidos y sin recepción"
@@ -368,7 +377,7 @@ export default function Dashboard() {
                   <tbody>{porCuadrillaBins.map((a) => <tr key={a.clave}><td>{a.etiqueta}</td><td className="n">{a.total}</td><td className="n">{a.recibidos}</td><td className="n">{a.pendientes}</td><td className="n">{num(a.kilos)}</td></tr>)}</tbody>
                 </table>
               )}>
-              <BarrasH datos={pBinsCuadrilla} unidad="bins" />
+              <BarrasH datos={pBinsCuadrilla} unidad="bins" colores={colCuadrilla} />
             </TarjetaGrafico>
           </div>
           <p className="muted" style={{ marginTop: '-.4rem' }}>Detalle de cada bin en <a href="/admin/acopio/">Acopio y bins</a>.</p>
