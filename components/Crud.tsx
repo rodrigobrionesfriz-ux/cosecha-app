@@ -70,7 +70,7 @@ export default function Crud({ tabla, titulo, campos, orden = 'nombre', ayuda, o
   }
 
   async function borrar(f: any) {
-    if (!confirm(`¿Eliminar "${f.nombre ?? f.id}"?`)) return;
+    if (!confirm(`¿Eliminar "${f.nombre ?? f.patente ?? f.id}"?`)) return;
     const { error } = await supabase.from(tabla).delete().eq('id', f.id);
     if (error) alert(errorAmigable(error.message));
     recargar();

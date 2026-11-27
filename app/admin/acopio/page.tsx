@@ -176,7 +176,7 @@ export default function AcopioAdmin() {
           {despachos.map((d) => (
             <details key={d.id} className="tarjeta">
               <summary>
-                <b>N° {d.numero} · {d.patente}</b>
+                <b>N° {d.numero} · {d.patente}{d.carro ? ` + carro ${d.carro}` : ''}</b>
                 <span className="muted"> · {fh(d.abierto_en)}{d.guia ? ` · guía ${d.guia}` : ''}{d.destino ? ` · ${d.destino}` : ''} · {d.bins.length} bins · {num(d.bins.reduce((s: number, b: any) => s + Number(b.kilos || 0), 0))} kg</span>
                 {' '}<span className={`badge ${d.estado === 'cerrado' ? 'ok' : ''}`}>{d.estado}</span>
               </summary>

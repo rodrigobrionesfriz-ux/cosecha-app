@@ -71,7 +71,7 @@ export type EventoLocal = {
 
 /** Despacho (camión) creado en el teléfono de acopio */
 export type DespachoLocal = {
-  id: string; empresa_id: string; patente: string; guia: string; destino: string; chofer: string;
+  id: string; empresa_id: string; patente: string; guia: string; destino: string; chofer: string; transportista?: string; carro?: string;
   estado: 'abierto' | 'cerrado'; abierto_en: string; cerrado_en: string | null; usuario: string; sync: 0 | 1;
 };
 
@@ -148,7 +148,7 @@ export function idDispositivo(): string {
 }
 
 // ---------- Descarga de maestros ----------
-const MAESTROS = ['huertos', 'cuarteles', 'variedades', 'especies', 'envases', 'calidades', 'turnos', 'contratistas', 'cuadrillas', 'config_huerto', 'camaras', 'parametros_calidad', 'operadores'];
+const MAESTROS = ['huertos', 'cuarteles', 'variedades', 'especies', 'envases', 'calidades', 'turnos', 'contratistas', 'cuadrillas', 'config_huerto', 'camaras', 'parametros_calidad', 'operadores', 'camiones'];
 
 export async function descargarMaestros(): Promise<void> {
   for (const t of MAESTROS) {
@@ -159,6 +159,8 @@ export async function descargarMaestros(): Promise<void> {
     if (error) throw new Error(`${t}: ${error.message}`);
     await setCache(t, data || []);
   }
+  // los camiones agregados en el teléfono ya subieron con su despacho (se sube antes de descargar)
+  await setCache('camiones_locales', []);
   // Trabajadores (todos, para conocer bloqueados) y credenciales asignadas
   const trab = await traerTodo('trabajadores', 'id,rut,nombres,apellido_paterno,apellido_materno,estado,contratista_id,con_ficha');
   await setCache('trabajadores', trab);

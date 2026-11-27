@@ -4,7 +4,7 @@ import Crud from '@/components/Crud';
 import CuartelesCosecha from '@/components/CuartelesCosecha';
 import { useTabla } from '@/lib/datos';
 
-const TABS = ['Huertos', 'Cuarteles', 'Especies', 'Variedades', 'Envases', 'Calidades', 'Turnos', 'Contratistas', 'Cuadrillas'] as const;
+const TABS = ['Huertos', 'Cuarteles', 'Especies', 'Variedades', 'Envases', 'Calidades', 'Turnos', 'Contratistas', 'Cuadrillas', 'Camiones'] as const;
 
 export default function Maestros() {
   const [tab, setTab] = useState<(typeof TABS)[number]>('Huertos');
@@ -84,6 +84,17 @@ export default function Maestros() {
             { k: 'nombre', t: 'Nombre', req: true },
             { k: 'huerto_id', t: 'Huerto', tipo: 'select', opciones: op(huertos.filas) },
             { k: 'jefe_user_id', t: 'Jefe', tipo: 'select', opciones: op(perfiles.filas, 'user_id') },
+          ]} />
+      )}
+      {tab === 'Camiones' && (
+        <Crud key="cam" tabla="camiones" titulo="Camiones" orden="patente"
+          ayuda="Camiones para el despacho desde acopio. También se agregan solos cuando el operador de acopio ingresa uno nuevo al despachar. Patente sin guiones ni espacios (ej: BBVT39)."
+          campos={[
+            { k: 'patente', t: 'Patente', req: true, ancho: 130 },
+            { k: 'carro', t: 'Carro habitual', ancho: 130 },
+            { k: 'transportista', t: 'Transportista' },
+            { k: 'chofer', t: 'Chofer habitual' },
+            { k: 'telefono', t: 'Teléfono', ancho: 150 },
           ]} />
       )}
     </div>
