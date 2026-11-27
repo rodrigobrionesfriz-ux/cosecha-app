@@ -410,3 +410,13 @@ tfoot td { font-weight: 700; background: var(--paja-3); }
 .asignar-cred { border: 2px solid var(--verde); margin-top: 1rem; }
 .asignar-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: .6rem; margin-bottom: .6rem; }
 .asignar-actual { margin-bottom: .7rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+
+/* ---------- Informe cosecha diaria ---------- */
+.informe-cab { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; background: var(--verde-osc); color: #fff; border-bottom: 3px solid var(--cereza); border-radius: var(--radio) var(--radio) 0 0; padding: .8rem 1rem; }
+.informe-empresa { font-size: 1.1rem; font-weight: 700; }
+.informe-titulo { font-size: 1.05rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.informe-sub { font-size: .82rem; opacity: .85; }
+.informe-contr h4 { margin: .4rem 0; font-size: .92rem; color: var(--verde-osc); }
+.input-packing { width: 120px; text-align: right; padding: .3rem .5rem; }
+.factor-baja { color: var(--cereza-osc); font-weight: 600; }
+.factor-sube { color: var(--verde); font-weight: 600; }

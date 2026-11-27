@@ -10,7 +10,7 @@ export type Perfil = {
   email: string;
   rol: 'admin' | 'jefe' | 'consulta' | 'acopio' | 'administrativo';
   activo: boolean;
-  empresa?: { id: string; nombre: string; codigo: number };
+  empresa?: { id: string; nombre: string; codigo: number; rut?: string | null };
 };
 
 type Ctx = {
@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!navigator.onLine && guardado) { setPerfil(JSON.parse(guardado)); return; }
     const { data, error } = await supabase
       .from('perfiles')
-      .select('*, empresa:empresas(id,nombre,codigo)')
+      .select('*, empresa:empresas(id,nombre,codigo,rut)')
       .eq('user_id', s.user.id)
       .maybeSingle();
     if (error && guardado) { setPerfil(JSON.parse(guardado)); return; }
