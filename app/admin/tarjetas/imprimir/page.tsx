@@ -18,7 +18,7 @@ const FORMATOS: Record<string, { t: string; w: number; h: number; page: string; 
   tarjabingrande: { t: 'Tarja de bin grande 190×130 mm (2 por hoja A4)', w: 190, h: 130, page: 'A4', cols: 1, rows: 2, margen: 10, tipos: 'L' },
   termica5840bin: { t: 'Térmica 58×40 mm · tarja de bin', w: 58, h: 40, page: '58mm 40mm', cols: 1, rows: 1, margen: 0, tipos: 'L' },
   etiqueta: { t: 'Etiqueta 50×30 mm (24 por hoja A4)', w: 50, h: 30, page: 'A4', cols: 4, rows: 8, margen: 6, tipos: 'WB' },
-  termica5830qr: { t: 'Térmica 58×30 mm · solo QR + código (para PVC)', w: 58, h: 30, page: '58mm 30mm', cols: 1, rows: 1, margen: 0, tipos: 'WB' },
+  termica5830qr: { t: 'Térmica 58×30 mm · QR, código y logos (para PVC)', w: 58, h: 30, page: '58mm 30mm', cols: 1, rows: 1, margen: 0, tipos: 'WB' },
   termica5030: { t: 'Impresora térmica rollo 50×30 mm', w: 50, h: 30, page: '50mm 30mm', cols: 1, rows: 1, margen: 0, tipos: 'WB' },
   termica4030: { t: 'Impresora térmica rollo 40×30 mm', w: 40, h: 30, page: '40mm 30mm', cols: 1, rows: 1, margen: 0, tipos: 'WB' },
 };
@@ -26,6 +26,22 @@ const DEFECTO: Record<string, string> = { W: 'credencialv', B: 'etiqueta', L: 't
 const claveFormato = (tipo?: string) => 'cosecha-formato-imp-' + (tipo || 'W');
 /** Número corto del bin para leer a distancia: correlativo o últimos dígitos del código */
 const numeroBin = (it: Item) => String(it.numero ?? Number(it.codigo.replace(/\D/g, '').slice(-6)));
+
+/** Carga una imagen (SVG/PNG/JPG) y la devuelve como PNG para jsPDF, con su proporción ancho/alto */
+async function imagenPNG(url: string, gris = false): Promise<{ data: string; r: number }> {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  await new Promise((ok, mal) => { img.onload = ok; img.onerror = mal; img.src = url; });
+  const w0 = img.naturalWidth || 512, h0 = img.naturalHeight || 512;
+  const k = 600 / Math.max(w0, h0);
+  const c = document.createElement('canvas');
+  c.width = Math.round(w0 * k); c.height = Math.round(h0 * k);
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  if (gris) g.filter = 'grayscale(1) contrast(1.2)';
+  g.drawImage(img, 0, 0, c.width, c.height);
+  return { data: c.toDataURL('image/png'), r: c.width / c.height };
+}
 
 export default function Imprimir() {
   const { perfil } = useAuth();
@@ -93,14 +109,31 @@ export default function Imprimir() {
         setExportando('');
         return;
       }
-      const W = 58, H = 30, Q = 22.5;
+      const W = 58, H = 30, Q = 27;
+      const qs = await imagenPNG('/logo.svg');
+      const emp = logoEmpresa ? await imagenPNG(logoEmpresa, true).catch(() => null) : null;
       const doc = new jsPDF({ unit: 'mm', format: [W, H], orientation: 'landscape' });
+      const etiqueta = tipoActual === 'W' ? 'ID TRABAJADOR' : 'ID CAJA';
       items.forEach((it, i) => {
         if (i > 0) doc.addPage([W, H], 'landscape');
-        doc.addImage(it.qr!, 'PNG', (W - Q) / 2, 1.2, Q, Q);
+        doc.setTextColor(0);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(5.6);
+        doc.text(etiqueta, 2.6, H / 2 + doc.getTextWidth(etiqueta) / 2, { angle: 90 });
+        doc.addImage(it.qr!, 'PNG', 3.4, (H - Q) / 2, Q, Q);
+        const x0 = 32, xd = W - 1.5;
+        if (qs) doc.addImage(qs.data, 'PNG', xd - 19.5, 1.4, 5.5, 5.5);
+        doc.setFontSize(9.5); doc.text('QSecha', xd, 5.6, { align: 'right' });
         doc.setFont('courier', 'bold');
-        doc.setFontSize(9);
-        doc.text(it.codigo, W / 2, 27.6, { align: 'center' });
+        let fs = 7.5; doc.setFontSize(fs);
+        while (doc.getTextWidth(it.codigo) > xd - x0 && fs > 5) { fs -= 0.25; doc.setFontSize(fs); }
+        doc.text(it.codigo, xd, H / 2 + 1, { align: 'right' });
+        if (emp) {
+          let w = 24, h = w / emp.r; if (h > 6.5) { h = 6.5; w = h * emp.r; }
+          doc.addImage(emp.data, 'PNG', xd - w, H - 1.4 - h, w, h);
+        } else {
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(6);
+          doc.text(doc.splitTextToSize(nombreEmpresa, xd - x0), xd, H - 4.6, { align: 'right' });
+        }
       });
       doc.save(`credenciales_58x30_${items.length}.pdf`);
     } catch (e: any) { alert('No se pudo generar el PDF: ' + e.message); }
@@ -171,9 +204,15 @@ export default function Imprimir() {
         .credv .emp { position:absolute; bottom:2.6mm; left:6mm; right:6mm; border-top:0.2mm solid #ccc; padding-top:1mm; text-align:center; font-size:6.5pt; font-weight:700; color:#1f4a27; letter-spacing:.4pt; height:6mm; display:flex; align-items:center; justify-content:center; }
         .credv .emp img { max-height:6mm; max-width:36mm; object-fit:contain; }
         @media print { .credv * { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
-        .soloqr { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:1mm 0 0.8mm; font-family: ui-monospace, Menlo, Consolas, monospace; }
-        .soloqr img { height:${f.h - 7.5}mm; width:${f.h - 7.5}mm; image-rendering: pixelated; }
-        .soloqr .cod { font-size:8pt; font-weight:700; letter-spacing:0.2pt; margin-top:0.8mm; color:#000; white-space:nowrap; }
+        .soloqr { display:flex; align-items:center; height:100%; padding:1.2mm 1.5mm 1.2mm 0.6mm; box-sizing:border-box; gap:0.8mm; font-family: system-ui, Arial, sans-serif; }
+        .soloqr .vert { writing-mode:vertical-rl; transform:rotate(180deg); font-size:5.6pt; font-weight:700; letter-spacing:.4pt; color:#000; white-space:nowrap; }
+        .soloqr .qr { height:${f.h - 3}mm; width:${f.h - 3}mm; image-rendering: pixelated; flex:none; }
+        .soloqr .der { flex:1; min-width:0; height:100%; display:flex; flex-direction:column; justify-content:space-between; align-items:flex-end; padding-left:1mm; }
+        .soloqr .qs { display:flex; align-items:center; gap:1mm; font-size:9pt; font-weight:900; color:#000; }
+        .soloqr .qs img { width:5.5mm; height:5.5mm; }
+        .soloqr .cod { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:6.6pt; font-weight:700; color:#000; white-space:nowrap; align-self:stretch; text-align:right; }
+        .soloqr .emp { height:6mm; max-width:100%; display:flex; align-items:flex-end; justify-content:flex-end; font-size:6pt; font-weight:700; text-align:right; line-height:1.05; color:#000; }
+        .soloqr .emp img { max-height:6mm; max-width:24mm; object-fit:contain; filter:grayscale(1) contrast(1.2); }
         .eti { display:flex; align-items:center; gap:2mm; padding:1.5mm 2mm; font-family:system-ui,sans-serif; }
         .eti img { height:${f.h - 4}mm; width:${f.h - 4}mm; }
         .eti .cod { font-family: ui-monospace, monospace; font-size:7pt; word-break:break-all; }
@@ -271,8 +310,13 @@ export default function Imprimir() {
               </div>
             ) : formato === 'termica5830qr' ? (
               <div className="item soloqr" key={it.codigo}>
-                <img src={it.qr} alt={it.codigo} />
-                <div className="cod">{it.codigo}</div>
+                <div className="vert">{it.tipo === 'W' ? 'ID TRABAJADOR' : 'ID CAJA'}</div>
+                <img className="qr" src={it.qr} alt={it.codigo} />
+                <div className="der">
+                  <div className="qs"><img src="/logo.svg" alt="" />QSecha</div>
+                  <div className="cod">{it.codigo}</div>
+                  <div className="emp">{logoEmpresa ? <img src={logoEmpresa} alt={nombreEmpresa} /> : nombreEmpresa}</div>
+                </div>
               </div>
             ) : formato === 'credencialv' ? (
               <div className="item credv" key={it.codigo}>
