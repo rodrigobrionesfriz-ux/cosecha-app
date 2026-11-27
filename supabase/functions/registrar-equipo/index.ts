@@ -30,17 +30,18 @@ Deno.serve(async (req) => {
     const imei = String(b.imei ?? '').replace(/\D/g, '');
     const nombre = String(b.nombre ?? '').trim().slice(0, 60);
     const tipo = b.tipo === 'acopio' ? 'acopio' : 'campo';
-    const codEmpresa = Number(String(b.empresa ?? '1').replace(/\D/g, '') || '1');
+    const codEmpresa = Number(String(b.empresa ?? '').replace(/\D/g, '') || '0');
     const secreto = String(b.secreto ?? '');
     const modelo = String(b.modelo ?? '').slice(0, 120) || null;
 
     if (!imeiValido(imei)) return json({ error: 'IMEI inválido. Debe tener 15 dígitos (marca *#06# en el teléfono para verlo).' }, 400);
     if (nombre.length < 2) return json({ error: 'Indica un nombre para el equipo.' }, 400);
     if (secreto.length < 24) return json({ error: 'Solicitud inválida.' }, 400);
+    if (!codEmpresa) return json({ error: 'Indica el código de empresa (lo entrega el administrador).' }, 400);
 
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
 
-    const { data: emp } = await admin.from('empresas').select('id,codigo,nombre').eq('codigo', codEmpresa).maybeSingle();
+    const { data: emp } = await admin.from('empresas').select('id,codigo,nombre').eq('codigo', codEmpresa).eq('activa', true).maybeSingle();
     if (!emp) return json({ error: 'Código de empresa no encontrado.' }, 400);
 
     const email = `equipo-${String(emp.codigo).padStart(2, '0')}-${imei}@equipos.qsecha.app`;
